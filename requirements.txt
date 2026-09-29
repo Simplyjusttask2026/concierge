@@ -1,0 +1,8 @@
+flask
+flask-cors
+gunicorn
+crewai
+crewai-tools
+composio
+composio_crewai
+litellm
