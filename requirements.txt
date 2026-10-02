@@ -1,5 +1,4 @@
 crewai==1.9.3
-crewai-tools==1.9.3
 composio==0.18.0
 composio_crewai==0.18.0
 litellm==1.103.0
