@@ -3,9 +3,18 @@ import os, time
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import litellm
 from crewai import Agent, Task, Crew, LLM
 from composio import Composio
 from composio_crewai import CrewAIProvider
+
+# ====== FIX: strip 'cache_breakpoint' markers that Groq rejects ======
+def _strip_cache_breakpoint(kwargs, *args, **kw):
+    for m in (kwargs.get("messages") or []):
+        if isinstance(m, dict):
+            m.pop("cache_breakpoint", None)
+
+litellm.input_callback = [_strip_cache_breakpoint]
 
 # ====== EDIT THIS: tell the concierge about your business ======
 BUSINESS_INFO = """
