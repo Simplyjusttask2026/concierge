@@ -1,1 +1,8 @@
-{"error":{"message":"Short link not found or expired","code":4601,"slug":"ShortLink_NotFound","status":404,"request_id":"7a11d5d2-4129-46b9-944a-15cfc82ad622","suggested_fix":""}}
+crewai==1.9.3
+crewai-tools==1.9.3
+composio==0.18.0
+composio_crewai==0.18.0
+litellm==1.103.0
+flask
+flask-cors
+gunicorn
