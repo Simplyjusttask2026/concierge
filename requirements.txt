@@ -1,6 +1,6 @@
-crewai==1.9.3
-composio==0.18.0
-composio_crewai==0.18.0
+crewai==1.15.8
+composio==0.18.2
+composio_crewai==0.18.2
 litellm==1.103.0
 flask
 flask-cors
