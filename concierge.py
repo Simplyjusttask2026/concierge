@@ -3,18 +3,25 @@ import os, time
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import litellm
 from crewai import Agent, Task, Crew, LLM
+import crewai.llm as _crew_llm_mod
 from composio import Composio
 from composio_crewai import CrewAIProvider
 
-# ====== FIX: strip 'cache_breakpoint' markers that Groq rejects ======
-def _strip_cache_breakpoint(kwargs, *args, **kw):
-    for m in (kwargs.get("messages") or []):
-        if isinstance(m, dict):
-            m.pop("cache_breakpoint", None)
+# ====== FIX: CrewAI adds 'cache_breakpoint' markers for prompt caching,
+# but litellm passes them to Groq, which rejects them. Patch CrewAI's
+# message formatter to strip the marker for non-caching providers. ======
+_orig_fmt = _crew_llm_mod.LLM._format_messages_for_provider
 
-litellm.input_callback = [_strip_cache_breakpoint]
+def _fmt_no_cache_breakpoint(self, messages):
+    if messages:
+        messages = [
+            {k: v for k, v in m.items() if k != "cache_breakpoint"}
+            for m in messages
+        ]
+    return _orig_fmt(self, messages)
+
+_crew_llm_mod.LLM._format_messages_for_provider = _fmt_no_cache_breakpoint
 
 # ====== EDIT THIS: tell the concierge about your business ======
 BUSINESS_INFO = """
