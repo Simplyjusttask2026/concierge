@@ -182,7 +182,7 @@ def chat():
             if "rate_limit" in str(e).lower():
                 time.sleep(45)
             else:
-                return jsonify({"reply": "Oops, I hiccuped! Try again?"})
+                return jsonify({"reply": "DEBUG: " + str(e)[:400]})
 
 @app.route("/")
 def home():
