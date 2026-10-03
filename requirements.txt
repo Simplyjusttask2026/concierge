@@ -2,6 +2,7 @@ crewai==1.15.8
 composio==0.18.2
 composio_crewai==0.18.2
 litellm==1.103.0
+requests
 flask
 flask-cors
 gunicorn
