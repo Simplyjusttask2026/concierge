@@ -25,7 +25,7 @@ _crew_llm_mod.LLM._format_messages_for_provider = _fmt_no_cache_breakpoint
 
 # ====== Config ======
 CAL_API_KEY = os.environ.get("CAL_API_KEY", "")
-COMPOSIO_API_KEY = os.environ.get("COMPOSIO_API_KEY", "")
+MONDAY_API_TOKEN = os.environ.get("MONDAY_API_TOKEN", "")
 CAL_EVENT_TYPE_ID = 7325379  # Simply Stress-Free Booking (30 min)
 CAL_LINK = "https://cal.com/simply-justtask/15min"
 MONDAY_BOARD_ID = 18432910501
@@ -41,6 +41,8 @@ def save_lead(full_name: str, email: str, phone: str, address: str,
     """Save a new lead to the monday.com pipeline board (Incoming Leads (New) group).
     Args: full_name, email, phone, property address/city, service_needed,
     grade = 'A' (high intent) or 'B' (browsing)."""
+    if not MONDAY_API_TOKEN:
+        return "ERROR: monday token not configured. Tell the guest you will take a message and a human will follow up."
     today = datetime.datetime.now(
         datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d")
     column_values = {
@@ -53,31 +55,34 @@ def save_lead(full_name: str, email: str, phone: str, address: str,
         "long_text_mm7ky7j4": {"text": "Address: %s | Service: %s | Grade: %s"
                                % (address, service_needed, grade.upper())},
     }
+    query = ("mutation ($board: ID!, $group: String!, $name: String!, $cols: JSON!) {"
+             " create_item(board_id: $board, group_id: $group, item_name: $name,"
+             " column_values: $cols) { id } }")
     r = requests.post(
-        "https://backend.composio.dev/api/v3/tools/execute/MONDAY_CREATE_ITEM",
-        headers={"x-api-key": COMPOSIO_API_KEY, "Content-Type": "application/json"},
-        json={"user_id": "default", "arguments": {
-            "board_id": MONDAY_BOARD_ID,
-            "item_name": full_name,
-            "group_id": MONDAY_GROUP_ID,
-            "column_values": json.dumps(column_values),
+        "https://api.monday.com/v2",
+        headers={"Authorization": MONDAY_API_TOKEN, "Content-Type": "application/json"},
+        json={"query": query, "variables": {
+            "board": str(MONDAY_BOARD_ID),
+            "group": MONDAY_GROUP_ID,
+            "name": full_name,
+            "cols": json.dumps(column_values),
         }},
         timeout=30,
     )
     try:
         d = r.json()
     except Exception:
-        return "Lead save failed (HTTP %s). Tell the guest you will take a message." % r.status_code
-    if d.get("successful") or d.get("data", {}).get("id"):
-        return "Lead saved to the pipeline board."
-    return "Lead save failed: " + json.dumps(d)[:300]
+        return "ERROR: lead save failed (HTTP %s). Tell the guest a human will follow up." % r.status_code
+    if d.get("data", {}).get("create_item", {}).get("id"):
+        return "SUCCESS: lead saved to the pipeline board with id " + str(d["data"]["create_item"]["id"])
+    return "ERROR: lead save failed: " + json.dumps(d)[:300]
 
 @tool("check_availability")
 def check_availability(start_date: str, end_date: str) -> str:
     """Check open estimate appointment slots on the company calendar.
     Args: start_date and end_date as YYYY-MM-DD (Eastern Time). Returns available start times."""
     if not CAL_API_KEY:
-        return "Booking calendar is not configured yet. Take a message instead."
+        return "ERROR: booking calendar not configured. Share the booking link instead: " + CAL_LINK
     r = requests.get(
         "https://api.cal.com/v2/slots",
         headers={**CAL_HEADERS, "cal-api-version": "2024-09-04"},
@@ -102,7 +107,7 @@ def book_estimate(full_name: str, email: str, phone: str, address: str,
     and start_iso = the exact slot start time from check_availability
     (ISO 8601 with timezone offset)."""
     if not CAL_API_KEY:
-        return "Booking calendar is not configured yet. Take a message instead."
+        return "ERROR: booking calendar not configured. Share the booking link instead: " + CAL_LINK
     body = {
         "start": start_iso,
         "eventTypeId": CAL_EVENT_TYPE_ID,
@@ -158,8 +163,9 @@ STEP 3 - GRADE THE LEAD
 
 STEP 4 - SAVE THE LEAD (as soon as you have name + email + phone)
 Call the save_lead tool with the collected info and the grade.
-Do NOT tell the visitor about internal systems - just reassure them the
-team has their details.
+IMPORTANT: only tell the guest their info was captured if the tool returns
+SUCCESS. If it returns ERROR, say a team member will follow up instead.
+Do NOT mention internal systems to the visitor.
 
 STEP 5 - QUALIFY & BOOK (Grade A leads)
 Offer a free 30-minute estimate with Anthony:
