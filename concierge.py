@@ -316,6 +316,13 @@ def chat():
             else:
                 return jsonify({"reply": "DEBUG: " + str(e)[:400]})
 
+@app.route("/debug")
+def debug():
+    return jsonify({
+        "monday_token_loaded": bool(MONDAY_API_TOKEN),
+        "cal_key_loaded": bool(CAL_API_KEY),
+    })
+
 @app.route("/")
 def home():
     return "Concierge is alive!"
