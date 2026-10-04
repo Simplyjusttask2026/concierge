@@ -303,6 +303,24 @@ def chat():
     message = request.json.get("message", "").strip()
     if not message:
         return jsonify({"reply": "Please type a message! :)"})
+    # Auto-capture: extract lead info directly and save if complete
+    try:
+        resp = llm.call([
+            {"role": "system", "content": "Extract lead info from the message. Reply with ONLY a JSON object with keys: full_name, email, phone, address, service_needed, grade ('A' if ready to start/urgent/specific, else 'B'). Use empty string for anything missing. No markdown."},
+            {"role": "user", "content": message},
+        ])
+        txt = str(resp).strip()
+        if txt.startswith("```"):
+            txt = txt.strip("`").replace("json", "", 1).strip()
+        info = json.loads(txt)
+        if info.get("full_name") and info.get("email") and info.get("phone"):
+            print("AUTO-SAVE:", save_lead(
+                info["full_name"], info["email"], info["phone"],
+                info.get("address", ""), info.get("service_needed", ""),
+                info.get("grade", "B")))
+    except Exception as ex:
+        print("auto-extract skipped:", ex)
+
     task = Task(description="A website guest asks: " + message,
                 expected_output="A short, friendly, helpful reply (2-4 sentences)",
                 agent=agent)
