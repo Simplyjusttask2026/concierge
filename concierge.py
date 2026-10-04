@@ -43,6 +43,11 @@ def save_lead(full_name: str, email: str, phone: str, address: str,
     grade = 'A' (high intent) or 'B' (browsing)."""
     if not MONDAY_API_TOKEN:
         return "ERROR: monday token not configured. Tell the guest you will take a message and a human will follow up."
+    digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) == 10:
+        digits = "1" + digits
+    if digits and not digits.startswith("+"):
+        phone = "+" + digits
     today = datetime.datetime.now(
         datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d")
     column_values = {
@@ -73,8 +78,9 @@ def save_lead(full_name: str, email: str, phone: str, address: str,
         d = r.json()
     except Exception:
         return "ERROR: lead save failed (HTTP %s). Tell the guest a human will follow up." % r.status_code
-    if d.get("data", {}).get("create_item", {}).get("id"):
-        return "SUCCESS: lead saved to the pipeline board with id " + str(d["data"]["create_item"]["id"])
+    item = (d.get("data") or {}).get("create_item") or {}
+    if item.get("id"):
+        return "SUCCESS: lead saved to the pipeline board with id " + str(item["id"])
     return "ERROR: lead save failed: " + json.dumps(d)[:300]
 
 @tool("check_availability")
