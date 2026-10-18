@@ -25,63 +25,74 @@ _crew_llm_mod.LLM._format_messages_for_provider = _fmt_no_cache_breakpoint
 
 # ====== Config ======
 CAL_API_KEY = os.environ.get("CAL_API_KEY", "")
-MONDAY_API_TOKEN = os.environ.get("MONDAY_API_TOKEN", "")
 CAL_EVENT_TYPE_ID = 7325379  # Simply Stress-Free Booking (30 min)
 CAL_LINK = "https://cal.com/simply-justtask/15min"
-MONDAY_BOARD_ID = 18432910501
-MONDAY_GROUP_ID = "group_mm7km9fd"  # Incoming Leads (New)
+COMPOSIO_USER_ID = os.environ.get("COMPOSIO_USER_ID", "default")
+REPORT_EMAIL = os.environ.get("REPORT_EMAIL", "tasksupport@simplyjusttask.com")
+REPORT_CC = os.environ.get("REPORT_CC", "a.quinones@simplyjusttask.com")
+ZOHO_MAIL_ACCOUNT_ID = os.environ.get("ZOHO_MAIL_ACCOUNT_ID", "8048488000000008002")  # tasksupport mailbox
+ZOHO_FROM = os.environ.get("ZOHO_FROM_ADDRESS", "tasksupport@simplyjusttask.com")
 CAL_HEADERS = {
     "Authorization": "Bearer " + CAL_API_KEY,
     "Content-Type": "application/json",
 }
 
+composio = Composio(provider=CrewAIProvider())
+
+def zoho_exec(slug, args):
+    """Execute a Composio tool directly (Zoho CRM / Zoho Mail)."""
+    try:
+        return composio.tools.execute(slug=slug, arguments=args, user_id=COMPOSIO_USER_ID)
+    except TypeError:
+        try:
+            return composio.tools.execute(slug, args, COMPOSIO_USER_ID)
+        except Exception as e:
+            return {"error": str(e)}
+    except Exception as e:
+        return {"error": str(e)}
+
+def zoho_ok(resp):
+    return isinstance(resp, dict) and not resp.get("error") and resp.get("successful", True)
+
 @tool("save_lead")
 def save_lead(full_name: str, email: str, phone: str, address: str,
               service_needed: str, grade: str) -> str:
-    """Save a new lead to the monday.com pipeline board (Incoming Leads (New) group).
+    """Save a new lead to the Zoho CRM Leads module.
     Args: full_name, email, phone, property address/city, service_needed,
     grade = 'A' (high intent) or 'B' (browsing)."""
-    if not MONDAY_API_TOKEN:
-        return "ERROR: monday token not configured. Tell the guest you will take a message and a human will follow up."
-    digits = "".join(c for c in phone if c.isdigit())
-    if len(digits) == 10:
-        digits = "1" + digits
-    if digits and not digits.startswith("+"):
-        phone = "+" + digits
-    today = datetime.datetime.now(
-        datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d")
-    column_values = {
-        "email_mm7kdn74": {"email": email, "text": email},
-        "phone_mm7kfn2g": {"phone": phone, "countryShortName": "US"},
-        "color_mm7kecrp": {"label": "New"},
-        "color_mm7k7mg8": {"label": "High" if grade.upper() == "A" else "Medium"},
-        "date_mm7k675f": {"date": today},
-        "text_mm7rrwgc": "Concierge Bot",
-        "long_text_mm7ky7j4": {"text": "Address: %s | Service: %s | Grade: %s"
-                               % (address, service_needed, grade.upper())},
-    }
-    query = ("mutation ($board: ID!, $group: String!, $name: String!, $cols: JSON!) {"
-             " create_item(board_id: $board, group_id: $group, item_name: $name,"
-             " column_values: $cols) { id } }")
-    r = requests.post(
-        "https://api.monday.com/v2",
-        headers={"Authorization": MONDAY_API_TOKEN, "Content-Type": "application/json"},
-        json={"query": query, "variables": {
-            "board": str(MONDAY_BOARD_ID),
-            "group": MONDAY_GROUP_ID,
-            "name": full_name,
-            "cols": json.dumps(column_values),
-        }},
-        timeout=30,
-    )
+    parts = full_name.strip().split()
+    first, last = parts[0], (parts[-1] if len(parts) > 1 else parts[0])
+    # Dedupe by email
     try:
-        d = r.json()
+        existing = zoho_exec("ZOHO_SEARCH_ZOHO_RECORDS",
+                             {"module_api_name": "Leads", "email": email,
+                              "fields": "id,Full_Name,Email", "per_page": 1})
+        data = (existing.get("data") or {}).get("data") if isinstance(existing, dict) else None
+        if data:
+            return "SUCCESS: lead already exists in CRM with id " + str(data[0].get("id"))
     except Exception:
-        return "ERROR: lead save failed (HTTP %s). Tell the guest a human will follow up." % r.status_code
-    item = (d.get("data") or {}).get("create_item") or {}
-    if item.get("id"):
-        return "SUCCESS: lead saved to the pipeline board with id " + str(item["id"])
-    return "ERROR: lead save failed: " + json.dumps(d)[:300]
+        pass
+    desc = ("Address: %s | Service: %s | Grade: %s | Source: Website Concierge" %
+            (address, service_needed, grade.upper()))
+    resp = zoho_exec("ZOHO_CREATE_ZOHO_RECORD", {
+        "module_api_name": "Leads",
+        "data": [{
+            "First_Name": first, "Last_Name": last,
+            "Email": email, "Phone": phone,
+            "Company": address or "Residential",
+            "City": address,
+            "Description": desc,
+            "Lead_Source": "Chat",
+            "Lead_Status": "Not Contacted",
+        }],
+    })
+    try:
+        recs = (resp.get("data") or {}).get("data") or []
+        if recs and recs[0].get("code") == "SUCCESS":
+            return "SUCCESS: lead saved to Zoho CRM with id " + str(recs[0]["details"]["id"])
+        return "ERROR: lead save failed: " + json.dumps(resp)[:300]
+    except Exception:
+        return "ERROR: lead save failed: " + json.dumps(resp)[:300]
 
 @tool("check_availability")
 def check_availability(start_date: str, end_date: str) -> str:
@@ -284,13 +295,7 @@ GRADE B leads: thank them, save the lead, and promise a friendly follow-up.
 )
 
 llm = LLM(model="groq/openai/gpt-oss-120b")
-composio = Composio(provider=CrewAIProvider())
-tools = composio.tools.get(user_id="default", tools=[
-    "MONDAY_LIST_BOARDS",
-    "MONDAY_LIST_BOARD_ITEMS",
-    "MONDAY_LIST_ITEMS",
-])
-tools = list(tools) + [save_lead, check_availability, book_estimate]
+tools = [save_lead, check_availability, book_estimate]
 
 agent = Agent(
     role="Website Concierge",
@@ -343,13 +348,139 @@ def chat():
 @app.route("/debug")
 def debug():
     return jsonify({
-        "monday_token_loaded": bool(MONDAY_API_TOKEN),
+        "crm": "zoho",
         "cal_key_loaded": bool(CAL_API_KEY),
     })
 
 @app.route("/")
 def home():
     return "Concierge is alive!"
+
+
+# ================= DAILY LEAD PIPELINE (9am crew) =================
+import threading
+
+QUALIFY_PROMPT = """You are the lead qualification crew for Simply Just Task, a Central Florida
+residential services company (cleaning, handyman, lawn/landscape, pressure washing,
+errands, concierge, small engine, AI/tech). Score this lead and reply with ONLY JSON:
+{"status": one of "Pre-Qualified", "Not Qualified", "Junk Lead",
+ "score": 0-100, "notes": "2-3 sentence AI note on intent, fit, and suggested next step"}
+Rules: Pre-Qualified = real person, residential service fit, reachable contact info,
+some buying intent. Not Qualified = out of area/commercial/vague. Junk = spam/test/gibberish."""
+
+OUTREACH_PROMPT = """You are the outreach crew for Simply Just Task. Write a short, warm,
+plain-text follow-up email (under 120 words) from Anthony at Simply Just Task to this lead.
+Mention their service need, offer a FREE no-pressure estimate, include this booking link:
+""" + CAL_LINK + """ and phone (888) 566-7570. Sign off as 'Anthony & the Simply Just Task Team'.
+Reply with ONLY JSON: {"subject": "...", "body": "..."}"""
+
+def _llm_json(system, user):
+    resp = llm.call([{"role": "system", "content": system},
+                     {"role": "user", "content": user}])
+    txt = str(resp).strip()
+    if txt.startswith("```"):
+        txt = txt.strip("`")
+        if txt.lower().startswith("json"):
+            txt = txt[4:]
+    return json.loads(txt.strip())
+
+def run_daily_pipeline():
+    report = {"date": datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d %H:%M ET"),
+        "leads": [], "outreach": [], "errors": []}
+    try:
+        resp = zoho_exec("ZOHO_GET_ZOHO_RECORDS", {
+            "module_api_name": "Leads",
+            "fields": "First_Name,Last_Name,Email,Phone,City,Description,Lead_Status,Lead_Source,Created_Time",
+            "sort_by": "Created_Time", "sort_order": "desc", "per_page": 50})
+        leads = (resp.get("data") or {}).get("data") or []
+    except Exception as e:
+        leads = []
+        report["errors"].append("fetch leads failed: " + str(e)[:200])
+    for ld in leads:
+        status = ld.get("Lead_Status")
+        name = (ld.get("Full_Name") or ((ld.get("First_Name") or "") + " " + (ld.get("Last_Name") or ""))).strip()
+        entry = {"id": ld.get("id"), "name": name, "email": ld.get("Email"),
+                 "phone": ld.get("Phone"), "city": ld.get("City"),
+                 "source": ld.get("Lead_Source"), "old_status": status}
+        try:
+            if status in ("Not Contacted", None, "-None-"):
+                q = _llm_json(QUALIFY_PROMPT, json.dumps(ld, default=str)[:2000])
+                entry["ai_score"] = q.get("score")
+                entry["ai_notes"] = q.get("notes")
+                new_status = q.get("status", "Not Qualified")
+                entry["new_status"] = new_status
+                note = "\n\n[AI Qualifier %s] Score %s/100. %s" % (
+                    report["date"], q.get("score"), q.get("notes"))
+                zoho_exec("ZOHO_UPDATE_ZOHO_RECORD", {
+                    "module_api_name": "Leads",
+                    "data": [{"id": str(ld["id"]), "Lead_Status": new_status,
+                              "Description": (ld.get("Description") or "") + note}]})
+                if new_status == "Pre-Qualified" and ld.get("Email"):
+                    try:
+                        m = _llm_json(OUTREACH_PROMPT, json.dumps(ld, default=str)[:1500])
+                        send = zoho_exec("ZOHO_MAIL_MESSAGES_SEND_EMAIL", {
+                            "accountId": ZOHO_MAIL_ACCOUNT_ID,
+                            "fromAddress": ZOHO_FROM,
+                            "toAddress": ld["Email"],
+                            "subject": m.get("subject", "Your free estimate from Simply Just Task"),
+                            "content": m.get("body", ""), "mailFormat": "plaintext"})
+                        zoho_exec("ZOHO_UPDATE_ZOHO_RECORD", {
+                            "module_api_name": "Leads",
+                            "data": [{"id": str(ld["id"]), "Lead_Status": "Attempted to Contact"}]})
+                        entry["new_status"] = "Attempted to Contact"
+                        entry["outreach_sent"] = zoho_ok(send)
+                        report["outreach"].append({"to": ld["Email"], "name": name,
+                            "subject": m.get("subject"), "body": m.get("body"),
+                            "sent": zoho_ok(send)})
+                    except Exception as e:
+                        report["errors"].append("outreach %s: %s" % (name, str(e)[:200]))
+            else:
+                entry["new_status"] = status
+                entry["ai_notes"] = "Skipped - already " + str(status)
+        except Exception as e:
+            report["errors"].append("qualify %s: %s" % (name, str(e)[:200]))
+        report["leads"].append(entry)
+    # Build + send report email
+    lines = ["DAILY LEAD PIPELINE REPORT - " + report["date"], "",
+             "Leads reviewed: %d | Outreach sent: %d | Errors: %d" % (
+                 len(report["leads"]),
+                 sum(1 for o in report["outreach"] if o.get("sent")),
+                 len(report["errors"])), "", "=== LEADS ==="]
+    for e in report["leads"]:
+        lines.append("- %s | %s | %s | %s" % (e.get("name"), e.get("email"),
+                                              e.get("phone"), e.get("city")))
+        lines.append("  source: %s | status: %s -> %s | score: %s" % (
+            e.get("source"), e.get("old_status"), e.get("new_status"), e.get("ai_score", "-")))
+        lines.append("  AI notes: %s" % (e.get("ai_notes") or "-"))
+    lines += ["", "=== OUTREACH COPIES ==="]
+    for o in report["outreach"]:
+        lines.append("TO: %s (%s) | sent=%s" % (o.get("to"), o.get("name"), o.get("sent")))
+        lines.append("SUBJECT: " + str(o.get("subject")))
+        lines.append(str(o.get("body")))
+        lines.append("---")
+    if report["errors"]:
+        lines += ["", "=== ERRORS ==="] + report["errors"]
+    body = "\n".join(lines)
+    try:
+        zoho_exec("ZOHO_MAIL_MESSAGES_SEND_EMAIL", {
+            "accountId": ZOHO_MAIL_ACCOUNT_ID, "fromAddress": ZOHO_FROM,
+            "toAddress": REPORT_EMAIL, "ccAddress": REPORT_CC,
+            "subject": "SJT Lead Machine Report - " + report["date"],
+            "content": body, "mailFormat": "plaintext"})
+    except Exception as e:
+        print("report email failed:", e)
+    print(body)
+
+@app.route("/run-daily", methods=["GET", "POST"])
+def run_daily():
+    threading.Thread(target=run_daily_pipeline, daemon=True).start()
+    return jsonify({"status": "started",
+                    "note": "pipeline running; report will be emailed to " + REPORT_EMAIL}), 202
+
+@app.route("/ping")
+def ping():
+    return jsonify({"alive": True})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
