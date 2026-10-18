@@ -393,6 +393,7 @@ def run_daily_pipeline():
             "module_api_name": "Leads",
             "fields": "First_Name,Last_Name,Email,Phone,City,Description,Lead_Status,Lead_Source,Created_Time",
             "sort_by": "Created_Time", "sort_order": "desc", "per_page": 50})
+        print("RAW ZOHO FETCH:", json.dumps(resp, default=str)[:800])
         leads = (resp.get("data") or {}).get("data") or []
     except Exception as e:
         leads = []
@@ -471,6 +472,68 @@ def run_daily_pipeline():
     except Exception as e:
         print("report email failed:", e)
     print(body)
+
+
+# ================= SOCIAL MEDIA CREW =================
+SOCIAL_PLATFORMS = ["facebook", "instagram", "twitter"]
+
+def run_social_pipeline():
+    rep = {"date": datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d %H:%M ET"),
+        "actions": [], "errors": []}
+    social_tools = []
+    for tk in SOCIAL_PLATFORMS:
+        try:
+            t = composio.tools.get(user_id=COMPOSIO_USER_ID, toolkits=[tk])
+            t = list(t)
+            rep["actions"].append("%s: %d tools loaded" % (tk, len(t)))
+            social_tools += t
+        except Exception as e:
+            rep["errors"].append("%s toolkit: %s" % (tk, str(e)[:150]))
+    if not social_tools:
+        rep["errors"].append("No social platforms connected in Composio for user " + COMPOSIO_USER_ID)
+    else:
+        social_agent = Agent(
+            role="Social Media Manager",
+            goal=("Run Simply Just Task social media: make one friendly daily post per connected "
+                  "platform about residential services in Central Florida, check and warmly reply "
+                  "to any new messages/comments, and capture anyone interested as a lead."),
+            backstory="You represent Simply Just Task. Tagline: Reliable Help for Everyday Life. "
+                      "Residential focus, Central Florida. Warm, human, never pushy. "
+                      "Booking link: " + CAL_LINK + MASTER_KNOWLEDGE[:1500],
+            tools=social_tools + [save_lead], llm=llm, verbose=True)
+        tasks = [
+            Task(description="Create and publish one short daily post on each connected platform "
+                             "(Facebook, Instagram, Twitter/X) promoting Simply Just Task residential "
+                             "services. Skip any platform whose tools are unavailable.",
+                 expected_output="List of posts published with platform + post text", agent=social_agent),
+            Task(description="Check for new unread messages/comments on connected platforms. Reply "
+                             "warmly and helpfully. If anyone shows buying intent, collect name, email, "
+                             "phone, service needed and call save_lead (grade A).",
+                 expected_output="List of replies sent and any leads saved", agent=social_agent),
+        ]
+        try:
+            result = Crew(agents=[social_agent], tasks=tasks).kickoff()
+            rep["actions"].append("crew result: " + str(result)[:1500])
+        except Exception as e:
+            rep["errors"].append("social crew: " + str(e)[:300])
+    body = "SOCIAL MEDIA CREW REPORT - " + rep["date"] + "\n\n" + \
+           "\n".join(rep["actions"]) + "\n\nERRORS:\n" + "\n".join(rep["errors"])
+    try:
+        zoho_exec("ZOHO_MAIL_MESSAGES_SEND_EMAIL", {
+            "accountId": ZOHO_MAIL_ACCOUNT_ID, "fromAddress": ZOHO_FROM,
+            "toAddress": REPORT_EMAIL, "ccAddress": REPORT_CC,
+            "subject": "SJT Social Crew Report - " + rep["date"],
+            "content": body, "mailFormat": "plaintext"})
+    except Exception as e:
+        print("social report email failed:", e)
+    print(body)
+
+@app.route("/run-social", methods=["GET", "POST"])
+def run_social():
+    threading.Thread(target=run_social_pipeline, daemon=True).start()
+    return jsonify({"status": "started",
+                    "note": "social crew running; report will be emailed to " + REPORT_EMAIL}), 202
 
 @app.route("/run-daily", methods=["GET", "POST"])
 def run_daily():
