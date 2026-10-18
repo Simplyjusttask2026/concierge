@@ -65,4 +65,17 @@ Cash, Check, Credit/Debit, Zelle, Cash App, Venmo, PayPal, Business Checks, Elec
 - ⚠️ Chats hit a 10,000-message limit — always update this file before chat ends!
 
 ## LAST UPDATED
-2026-10-18 (merged status scoreboard: Findymail active, RetellAI parked, Facebook active, Nextdoor pending, 9am scheduler plan)
+2026-10-18 (Zoho switch deployed + /run-daily lead machine live on Render)
+
+
+=== 2026-10-18 — ZOHO CRM SWITCH + 9AM LEAD MACHINE ===
+CRM switched Monday.com -> Zoho CRM (free, 1 user, Simply Just Task Team).
+- Leads module pipeline: Not Contacted -> (Qualifier crew) Pre-Qualified / Not Qualified / Junk Lead -> outreach -> Attempted to Contact -> Contacted.
+- save_lead now writes to Zoho Leads (dedupe by email, Lead_Source=Chat).
+- New endpoints on sjt-concierge: /run-daily (GET/POST, runs pipeline in background, returns 202), /ping.
+- /run-daily pipeline: pulls latest 50 Zoho leads -> AI Qualifier scores + notes appended to Description -> Pre-Qualified get warm outreach email via Zoho Mail (tasksupport@simplyjusttask.com, accountId 8048488000000008002) incl. Cal.com link -> status Attempted to Contact.
+- Daily report emailed to tasksupport@simplyjusttask.com cc a.quinones@simplyjusttask.com with ALL leads, status changes, AI notes, outreach copies, errors.
+- Composio tools used by Render app: ZOHO_SEARCH_ZOHO_RECORDS, ZOHO_CREATE_ZOHO_RECORD, ZOHO_GET_ZOHO_RECORDS, ZOHO_UPDATE_ZOHO_RECORD, ZOHO_MAIL_MESSAGES_SEND_EMAIL (user_id env COMPOSIO_USER_ID, default "default" — must have Zoho + Zoho Mail connected in Composio for that user).
+- Timer: cron-job.org (free) -> GET https://sjt-concierge.onrender.com/run-daily daily 9:00 AM ET; also ping /ping every 10 min to keep Render free tier awake.
+- TODO (needs Anthony): create cron-job.org account + the two jobs above; verify Composio 'default' user has Zoho connections.
+- RetellAI calls + WhatsApp texts: wired in plan but OFF (cost money). Email is the free outreach channel.
