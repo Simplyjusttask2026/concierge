@@ -95,6 +95,26 @@ def save_lead(full_name: str, email: str, phone: str, address: str,
     except Exception:
         return "ERROR: lead save failed: " + json.dumps(resp)[:300]
 
+@tool("lookup_lead")
+def lookup_lead(email_or_phone: str) -> str:
+    """Look up a returning customer in Zoho CRM by email or phone to remember past
+    interactions, notes, and AI qualification. Use when a guest gives contact info."""
+    for key in ({"email": email_or_phone}, {"phone": email_or_phone}):
+        try:
+            args = {"module_api_name": "Leads",
+                    "fields": "Full_Name,Email,Phone,City,Lead_Status,Description"}
+            args.update(key)
+            r = zoho_exec("ZOHO_SEARCH_ZOHO_RECORDS", args)
+            data = (r.get("data") or {}).get("data") if isinstance(r, dict) else None
+            if data:
+                d = data[0]
+                return ("FOUND returning lead: %s | status %s | notes: %s" %
+                        (d.get("Full_Name"), d.get("Lead_Status"),
+                         (d.get("Description") or "")[:400]))
+        except Exception:
+            pass
+    return "No existing record - brand new guest."
+
 @tool("check_availability")
 def check_availability(start_date: str, end_date: str) -> str:
     """Check open estimate appointment slots on the company calendar.
@@ -292,11 +312,22 @@ Offer a free estimate with Anthony:
 If booking fails or they prefer it: share the booking link """ + CAL_LINK + """
 
 GRADE B leads: thank them, save the lead, and promise a friendly follow-up.
+
+=== HOW TO THINK (partner-level reasoning) ===
+You are Anthony's business partner, not a script. Before every reply, silently reason:
+1) What does this person ACTUALLY need (the real job behind their words)?
+2) What do I already know? If they gave an email or phone earlier, use lookup_lead
+   to remember them and reference it naturally (welcome back!).
+3) What is the single best next step toward a booked free estimate?
+Then speak like a smart, caring human: warm, confident, concise, never robotic.
+Remember details they mention within the conversation and use them later.
+If you learn something new about the customer, include it when you save_lead
+so the CRM gets smarter over time.
 """
 )
 
 llm = LLM(model="groq/openai/gpt-oss-120b")
-tools = [save_lead, check_availability, book_estimate]
+tools = [save_lead, check_availability, book_estimate, lookup_lead]
 
 agent = Agent(
     role="Website Concierge",
@@ -313,27 +344,36 @@ CORS(app)
 @app.route("/api/chat", methods=["POST"])
 def chat():
     message = request.json.get("message", "").strip()
+    history = request.json.get("history", [])[-12:]
     if not message:
         return jsonify({"reply": "Please type a message! :)"})
-    # Auto-capture: extract lead info directly and save if complete
-    try:
-        resp = llm.call([
-            {"role": "system", "content": "Extract lead info from the message. Reply with ONLY a JSON object with keys: full_name, email, phone, address, service_needed, grade ('A' if ready to start/urgent/specific, else 'B'). Use empty string for anything missing. No markdown."},
-            {"role": "user", "content": message},
-        ])
-        txt = str(resp).strip()
-        if txt.startswith("```"):
-            txt = txt.strip("`").replace("json", "", 1).strip()
-        info = json.loads(txt)
-        if info.get("full_name") and info.get("email") and info.get("phone"):
-            print("AUTO-SAVE:", save_lead(
-                info["full_name"], info["email"], info["phone"],
-                info.get("address", ""), info.get("service_needed", ""),
-                info.get("grade", "B")))
-    except Exception as ex:
-        print("auto-extract skipped:", ex)
 
-    task = Task(description="A website guest asks: " + message,
+    def _autosave():
+        try:
+            resp = llm.call([
+                {"role": "system", "content": "Extract lead info from the message. Reply with ONLY a JSON object with keys: full_name, email, phone, address, service_needed, grade ('A' if ready to start/urgent/specific, else 'B'). Use empty string for anything missing. No markdown."},
+                {"role": "user", "content": message},
+            ])
+            txt = str(resp).strip()
+            if txt.startswith("```"):
+                txt = txt.strip("`").replace("json", "", 1).strip()
+            info = json.loads(txt)
+            if info.get("full_name") and info.get("email") and info.get("phone"):
+                print("AUTO-SAVE:", save_lead(
+                    info["full_name"], info["email"], info["phone"],
+                    info.get("address", ""), info.get("service_needed", ""),
+                    info.get("grade", "B")))
+        except Exception as ex:
+            print("auto-extract skipped:", ex)
+
+    threading.Thread(target=_autosave, daemon=True).start()
+
+    convo = ""
+    if history:
+        convo = "Conversation so far:\n" + "\n".join(
+            ("Guest: " if m.get("role") == "user" else "You: ") + str(m.get("content", ""))
+            for m in history) + "\n\n"
+    task = Task(description=convo + "A website guest asks: " + message,
                 expected_output="A short, friendly, helpful reply (2-4 sentences)",
                 agent=agent)
     for attempt in range(4):
@@ -368,6 +408,8 @@ errands, concierge, small engine, AI/tech). Score this lead and reply with ONLY 
  "score": 0-100, "notes": "2-3 sentence AI note on intent, fit, and suggested next step"}
 Rules: Pre-Qualified = real person, residential service fit, reachable contact info,
 some buying intent. Not Qualified = out of area/commercial/vague. Junk = spam/test/gibberish."""
+
+OUTREACH_DAILY_CAP = int(os.environ.get("OUTREACH_DAILY_CAP", "10"))
 
 OUTREACH_PROMPT = """You are the outreach crew for Simply Just Task. Write a short, warm,
 plain-text follow-up email (under 120 words) from Anthony at Simply Just Task to this lead.
@@ -418,7 +460,10 @@ def run_daily_pipeline():
                     "module_api_name": "Leads",
                     "data": [{"id": str(ld["id"]), "Lead_Status": new_status,
                               "Description": (ld.get("Description") or "") + note}]})
-                if new_status == "Pre-Qualified" and ld.get("Email"):
+                if (new_status == "Pre-Qualified" and ld.get("Email")
+                        and len(report["outreach"]) >= OUTREACH_DAILY_CAP):
+                    entry["ai_notes"] = (entry.get("ai_notes") or "") + " | Outreach QUEUED for tomorrow (daily cap)"
+                elif new_status == "Pre-Qualified" and ld.get("Email"):
                     try:
                         m = _llm_json(OUTREACH_PROMPT, json.dumps(ld, default=str)[:1500])
                         send = zoho_exec("ZOHO_MAIL_MESSAGES_SEND_EMAIL", {
