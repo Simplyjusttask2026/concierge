@@ -42,7 +42,8 @@ composio = Composio(provider=CrewAIProvider())
 def zoho_exec(slug, args):
     """Execute a Composio tool directly (Zoho CRM / Zoho Mail)."""
     try:
-        return composio.tools.execute(slug=slug, arguments=args, user_id=COMPOSIO_USER_ID)
+        return composio.tools.execute(slug=slug, arguments=args, user_id=COMPOSIO_USER_ID,
+                                      dangerously_skip_version_check=True)
     except TypeError:
         try:
             return composio.tools.execute(slug, args, COMPOSIO_USER_ID)
