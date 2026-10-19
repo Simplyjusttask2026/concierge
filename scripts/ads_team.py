@@ -1,13 +1,14 @@
 """
 ADS TEAM - draft production helpers (Simply Just Task)
 Owner rule: ALL FREE - $0. Owner update 2026-10-19: DO NOT use Cal link in ads.
-Use Anthony cell (352) 849-2344 and Michael Sabo (321) 745-5894.
-Draft-only, no post function. Images: real website photos or text-only, never fake before/after as our work.
+Ads must include: tasksupport@simplyjusttask.com AND Anthony Quinones (352) 849-2344 AND Michael Sabo (321) 745-5894.
+Keep all contacts. Draft-only, no post function. Images: real website photos or text-only, never fake before/after as our work.
 """
 PHONE_ANTHONY = "(352) 849-2344"
 PHONE_MICHAEL = "(321) 745-5894"
-CONTACT_LINE = f"Call/text Anthony {PHONE_ANTHONY} or Michael Sabo {PHONE_MICHAEL}"
-CONTACT_SHORT = f"Call/text {PHONE_ANTHONY} or {PHONE_MICHAEL}"
+EMAIL_TASKSUPPORT = "tasksupport@simplyjusttask.com"
+CONTACT_LINE = f"Call/text Anthony Quinones {PHONE_ANTHONY} or Michael Sabo {PHONE_MICHAEL} - or email {EMAIL_TASKSUPPORT}"
+CONTACT_SHORT = f"Call/text {PHONE_ANTHONY} or {PHONE_MICHAEL} - email {EMAIL_TASKSUPPORT}"
 TAGLINE = "Reliable Help for Everyday Life."
 SERVICES = {
     "handyman": {"label": "Handyman & Home Repairs", "pain": "fix-it lists that keep growing", "hook": "That fix-it list isn't getting shorter."},
@@ -25,6 +26,8 @@ def compliance_check(text):
         issues.append("missing Anthony phone")
     if PHONE_MICHAEL not in text:
         issues.append("missing Michael phone")
+    if EMAIL_TASKSUPPORT not in text:
+        issues.append("missing tasksupport email")
     return issues
 def draft_facebook(service):
     s = SERVICES[service]
