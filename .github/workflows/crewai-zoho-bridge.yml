@@ -1,0 +1,27 @@
+name: CrewAI Zoho Bridge - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fetch verified bridge patch
+        run: |
+          curl -L -o /tmp/bridge.zip "https://backend.composio.dev/api/v3/sl/BJ0ejvFxCG"
+          unzip -o /tmp/bridge.zip -d /tmp/bridge
+          ls -R /tmp/bridge
+          cp /tmp/bridge/bridge_patch.py scripts/bridge_patch.py
+      - run: python scripts/bridge_patch.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add concierge.py scripts/daily_job.py .github/workflows/daily-9am.yml
+          git diff --cached --stat
+          git commit -m "CrewAI Zoho bridge: Studio leads to Zoho at 9AM" || echo "nothing to commit"
+          git push
