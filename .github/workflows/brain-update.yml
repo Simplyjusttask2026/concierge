@@ -13,7 +13,7 @@ jobs:
           python-version: "3.11"
       - name: Fetch verified BRAIN patch
         run: |
-          curl -L -o scripts/brain_patch.py "https://backend.composio.dev/api/v3/sl/OD4TBvIoIf"
+          curl -L -o scripts/brain_patch.py "https://backend.composio.dev/api/v3/sl/omIzHPZDB0"
           head -c 200 scripts/brain_patch.py
       - run: python scripts/brain_patch.py
       - run: |
