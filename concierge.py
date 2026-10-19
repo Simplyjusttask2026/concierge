@@ -521,7 +521,7 @@ def run_daily_pipeline():
 
 
 # ================= SOCIAL MEDIA CREW =================
-SOCIAL_PLATFORMS = ["facebook", "instagram", "twitter"]
+SOCIAL_PLATFORMS = ["facebook", "instagram"]  # twitter removed 2026-10-19: owner locked out, no X API yet
 
 def run_social_pipeline():
     rep = {"date": datetime.datetime.now(
@@ -550,7 +550,7 @@ def run_social_pipeline():
             tools=social_tools + [save_lead], llm=llm, verbose=True)
         tasks = [
             Task(description="Create and publish one short daily post on each connected platform "
-                             "(Facebook, Instagram, Twitter/X) promoting Simply Just Task residential "
+                             "(Facebook, Instagram) promoting Simply Just Task residential "
                              "services. Skip any platform whose tools are unavailable.",
                  expected_output="List of posts published with platform + post text", agent=social_agent),
             Task(description="Check for new unread messages/comments on connected platforms. Reply "
