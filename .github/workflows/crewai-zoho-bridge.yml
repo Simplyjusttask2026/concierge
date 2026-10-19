@@ -3,7 +3,6 @@ on:
   workflow_dispatch: {}
 permissions:
   contents: write
-  workflows: write
 jobs:
   bridge:
     runs-on: ubuntu-latest
@@ -19,10 +18,31 @@ jobs:
           ls -R /tmp/bridge
           cp /tmp/bridge/bridge_patch.py scripts/bridge_patch.py
       - run: python scripts/bridge_patch.py
+      - name: Apply 1-line workflow env fix with user token
+        env:
+          GH_TOKEN: ${{ secrets.BRIDGE_PAT }}
+        run: |
+          python - <<'PY'
+          import pathlib
+          yml = pathlib.Path('.github/workflows/daily-9am.yml')
+          y = yml.read_text()
+          if 'MACHINE_TOKEN:' not in y:
+              old = '          CREWAI_BEARER_TOKEN: ${{ secrets.CREWAI_BEARER_TOKEN }}' + chr(10)
+              assert y.count(old) == 1, 'yml anchor missing'
+              y = y.replace(old, old + '          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}' + chr(10), 1)
+              yml.write_text(y)
+              print('daily-9am.yml MACHINE_TOKEN added')
+          else:
+              print('daily-9am.yml already has MACHINE_TOKEN')
+          PY
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add concierge.py scripts/daily_job.py .github/workflows/daily-9am.yml
+          git add concierge.py scripts/daily_job.py
           git diff --cached --stat
           git commit -m "CrewAI Zoho bridge: Studio leads to Zoho at 9AM" || echo "nothing to commit"
-          git push
+          git push "https://x-access-token:${{ secrets.BRIDGE_PAT }}@github.com/Simplyjusttask2026/concierge.git" HEAD:main
+          git add .github/workflows/daily-9am.yml
+          git diff --cached --stat
+          git commit -m "Daily 9AM: pass MACHINE_TOKEN to bridge" || echo "nothing to commit"
+          git push "https://x-access-token:${{ secrets.BRIDGE_PAT }}@github.com/Simplyjusttask2026/concierge.git" HEAD:main
