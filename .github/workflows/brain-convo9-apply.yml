@@ -1,0 +1,21 @@
+name: BRAIN Convo 9 Apply - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  brain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python scripts/brain_convo9_patch.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add BRAIN.md
+          git diff --cached --stat
+          git commit -m "BRAIN convo 9: X API in progress, timer check, ads team" || echo "nothing to commit"
+          git push
