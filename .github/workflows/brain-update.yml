@@ -13,10 +13,8 @@ jobs:
           python-version: "3.11"
       - name: Fetch verified BRAIN patch
         run: |
-          curl -L -o /tmp/brain.zip "https://backend.composio.dev/api/v3/sl/OD4TBvIoIf"
-          unzip -o /tmp/brain.zip -d /tmp/brain
-          ls /tmp/brain
-          cp /tmp/brain/brain_patch.py scripts/brain_patch.py
+          curl -L -o scripts/brain_patch.py "https://backend.composio.dev/api/v3/sl/OD4TBvIoIf"
+          head -c 200 scripts/brain_patch.py
       - run: python scripts/brain_patch.py
       - run: |
           git config user.name "github-actions[bot]"
