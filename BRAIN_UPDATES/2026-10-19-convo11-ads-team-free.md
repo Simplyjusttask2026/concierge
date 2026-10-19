@@ -1,0 +1,8 @@
+# BRAIN UPDATE - 2026-10-19 convo 11 (append to BRAIN.md on next full sync)
+
+## ADS TEAM BUILT - FREE ONLY, DRAFT-ONLY - 2026-10-19 convo 11
+- OWNER: "i need to create an ads team to produce ads" then corrected the paid-Meta idea with "no all free". Ads Team is FREE-ONLY: $0 spend, no Meta Ads / boosts / paid placements, ever, without a new owner decision. An unused Meta Ads connect link was generated in chat (lk_aGrVzSam7XXV) - DO NOT use it unless owner separately approves paid ads.
+- BUILT (same pattern as Nextdoor team): SOPS/ADS_TEAM.md (6 roles: Strategist, Audience Researcher, Copywriter, Creative, Compliance Checker, Analyst/Reporter) + scripts/ads_team.py (draft producers for Facebook / Instagram / X / Nextdoor + compliance checker, NO post/send function). BRAIN note in BRAIN_UPDATES/2026-10-19-convo11-ads-team-free.md (this file) - merge into BRAIN.md on next BRAIN sync, do not re-append if present.
+- Channels: Facebook Page 886504424556575, Instagram @simply_just_task, X @simplyjusttask (re-added to concierge 2026-10-19), Nextdoor personal (max 1 own post/day). Booking ONLY https://cal.com/simply-just-task/simplybook, phone (352) 849-2344.
+- GO RULE: draft-only default. Team produces 3-5 drafts + image idea, Reporter emails SJT Ads Team Report to tasksupport@simplyjusttask.com cc a.quinones@simplyjusttask.com, then STOPS. Posting only after owner `go post <channel/draft>` for that exact draft.
+- NOT YET: no /run-ads route in concierge.py, no auto timer, no first batch run. Awaiting owner: first service to push (Strategist suggests Handyman) + "produce ads" / "run ads team" to run the first batch. CrewAI Studio still has only Lead Automation-v1 (d5813278) online - Ads Team runs as code/SOP, not a Studio deployment.
