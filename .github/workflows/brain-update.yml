@@ -1,0 +1,27 @@
+name: BRAIN Update - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  brain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fetch verified BRAIN patch
+        run: |
+          curl -L -o /tmp/brain.zip "https://backend.composio.dev/api/v3/sl/OD4TBvIoIf"
+          unzip -o /tmp/brain.zip -d /tmp/brain
+          ls /tmp/brain
+          cp /tmp/brain/brain_patch.py scripts/brain_patch.py
+      - run: python scripts/brain_patch.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add BRAIN.md
+          git diff --cached --stat
+          git commit -m "BRAIN convo 7: CrewAI Zoho bridge live + 9AM schedule" || echo "nothing to commit"
+          git push
