@@ -3,6 +3,7 @@ on:
   workflow_dispatch: {}
 permissions:
   contents: write
+  workflows: write
 jobs:
   bridge:
     runs-on: ubuntu-latest
