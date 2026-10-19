@@ -1,0 +1,27 @@
+name: Remove Twitter - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Remove Twitter from social platforms
+        run: python scripts/remove_twitter_patch.py
+      - name: Commit back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add concierge.py
+          if git diff --cached --quiet; then
+            echo "No changes to commit (already removed)."
+          else
+            git commit -m "Remove Twitter/X from social: owner locked out, no X API yet"
+            git push origin main
+          fi
