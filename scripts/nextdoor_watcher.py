@@ -2,7 +2,10 @@
 NEXTDOOR-AGENT-01 watcher — TEAM scoring + dedupe + draft logic
 Status: BUILT 2026-10-19, UPDATED 2026-10-19 convo 4 (personal team, website services).
 Owner: YES he has a team (Scout/Qualifier/Writer/Image Maker/Poster/Reporter) — see SOPS/NEXTDOOR_KERNEL.md
-Schedule: SAME as other AIs — inside Daily 9AM machine (GitHub daily-9am.yml -> /run-daily), NOT a separate Nextdoor timer.
+Schedule: OWNER-SET every 2 hours, 7am-10pm ET — MORE FREQUENT than other AIs (other AIs = 1x/day Daily 9AM).
+  Reason: "looking for" job posts go fast. Caps: max 1 own post/day + max 3 replies per 2-hour check.
+  Main hunt: neighbors' "looking for" posts for jobs we do -> comment short, direct, neighborly with our info on THEIR post.
+  Truth: no auto timer live yet (Daily 9AM workflow 0 runs / secret blocker) — manual supervised runs until a real Nextdoor timer exists.
 Nextdoor has no API/webhook. Live browser steps run via Kernel MCP with profile nextdoor-anthony-personal.
 Posting is intentionally NOT implemented here. No send function in this file.
 Human `go comment <name>` / `go post` required, then Poster posts via Kernel manually and verifies.
@@ -43,6 +46,7 @@ def score_post(text: str, age_min: int = 60) -> int:
 def is_real_lead(score: int) -> bool:
     return score >= 80  # 70-79 = watch, >=80 = real lead (Qualifier rule)
 
+# Hunting priority: fresh "looking for" posts (INTENT phrases) for SERVICES jobs. Writer rule: short, direct, neighborly, with booking+phone.
 def draft_comment(author_first: str, job: str) -> str:
     return (f"Hi {author_first}, I'm Anthony — I run Simply Just Task right here in Apopka. "
             f"I can help with {job}. Happy to take a look first and give you a straight starting range, no pressure. "
