@@ -26,7 +26,7 @@ _crew_llm_mod.LLM._format_messages_for_provider = _fmt_no_cache_breakpoint
 # ====== Config ======
 CAL_API_KEY = os.environ.get("CAL_API_KEY", "")
 CAL_EVENT_TYPE_ID = 7325379  # Simply Stress-Free Booking (30 min)
-CAL_LINK = "https://cal.com/simply-justtask/15min"
+CAL_LINK = "https://cal.com/simply-justtask/simplybook"
 COMPOSIO_USER_ID = os.environ.get("COMPOSIO_USER_ID", "default")
 REPORT_EMAIL = os.environ.get("REPORT_EMAIL", "tasksupport@simplyjusttask.com")
 REPORT_CC = os.environ.get("REPORT_CC", "a.quinones@simplyjusttask.com")
