@@ -29,6 +29,7 @@ jobs:
       - name: Run 9AM job
         env:
           CREWAI_BEARER_TOKEN: ${{ secrets.CREWAI_BEARER_TOKEN }}
+          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
           CREWAI_KICKOFF_URL: "https://simply-just-task-lead-automation-v1-d581327-df40e8a1.crewai.com/kickoff"
           TARGET_PROFILE: "Local residential homeowners in Central Florida (Apopka area) who need home services, concierge and lifestyle support for Simply Just Task. Find, verify, score and qualify them. Free only, no paid outreach."
           CONCIERGE_URL: "https://sjt-concierge.onrender.com/"
