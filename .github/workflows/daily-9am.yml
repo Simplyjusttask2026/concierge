@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Run even if it is not 9AM New York"
+        description: "Run even if it is not 9AM New York (manual test - this WILL trigger Render /run-daily + /run-social)"
         required: false
-        default: "true"
+        default: "false"
 
 permissions:
   contents: read
@@ -32,5 +32,5 @@ jobs:
           CREWAI_KICKOFF_URL: "https://simply-just-task-lead-automation-v1-d581327-df40e8a1.crewai.com/kickoff"
           TARGET_PROFILE: "Local residential homeowners in Central Florida (Apopka area) who need home services, concierge and lifestyle support for Simply Just Task. Find, verify, score and qualify them. Free only, no paid outreach."
           CONCIERGE_URL: "https://sjt-concierge.onrender.com/"
-          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.force == 'true' && '1' || '0' }}
         run: python scripts/daily_job.py
