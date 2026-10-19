@@ -575,6 +575,134 @@ def run_social_pipeline():
         print("social report email failed:", e)
     print(body)
 
+# ================= CREWAI STUDIO -> ZOHO BRIDGE =================
+# POST /ingest-crewai-leads  {leads:[...]}  or {result: "..."} or {output: "..."}
+# CrewAI Studio hunter finishes -> scripts/daily_job.py sends its result here.
+# Each lead is saved to Zoho CRM (dedupe by email, then phone) as
+# Lead_Status=Not Contacted, Lead_Source=Web Research (Zoho has no CrewAI value yet),
+# with "Source: CrewAI Studio Lead Automation-v1" in Description.
+# Optional guard: set MACHINE_TOKEN on Render + GitHub; send x-machine-token header.
+MACHINE_TOKEN = os.environ.get("MACHINE_TOKEN", "")
+
+def _crewai_norm_lead(raw):
+    if not isinstance(raw, dict):
+        return None
+    def g(*keys):
+        for k in keys:
+            v = raw.get(k)
+            if v:
+                return str(v).strip()
+        return ""
+    name = g("full_name", "name", "Full_Name", "Name")
+    email = g("email", "Email")
+    phone = g("phone", "Phone", "mobile", "Mobile")
+    if not name and not email and not phone:
+        return None
+    return {
+        "full_name": name or "CrewAI Lead",
+        "email": email, "phone": phone,
+        "address": g("address", "Address", "city", "City"),
+        "service_needed": g("service_needed", "service", "Service_Needed", "notes", "Notes"),
+        "grade": (g("grade", "Grade") or "B").upper()[:1],
+        "score": g("score", "Score"),
+    }
+
+def _crewai_extract_leads(payload):
+    leads = []
+    if isinstance(payload, dict):
+        for key in ("leads", "data", "results", "output_leads"):
+            if isinstance(payload.get(key), list):
+                for item in payload[key]:
+                    n = _crewai_norm_lead(item)
+                    if n: leads.append(n)
+                if leads: return leads
+        for key in ("result", "output", "raw", "text"):
+            v = payload.get(key)
+            if isinstance(v, str):
+                leads = _crewai_extract_leads({"_text": v})
+                if leads: return leads
+            elif isinstance(v, (dict, list)):
+                leads = _crewai_extract_leads(v)
+                if leads: return leads
+    text = ""
+    if isinstance(payload, dict):
+        text = str(payload.get("_text") or "")
+    elif isinstance(payload, str):
+        text = payload
+    if text:
+        try:
+            parsed = json.loads(text)
+            return _crewai_extract_leads(parsed if isinstance(parsed, (dict, list)) else {"_text": text})
+        except Exception:
+            pass
+        # fallback: find JSON array/object chunks in prose
+        import re
+        for chunk in re.findall(r"\[.*?\]|\{.*?\}", text, flags=re.S):
+            try:
+                parsed = json.loads(chunk)
+            except Exception:
+                continue
+            got = _crewai_extract_leads(parsed if isinstance(parsed, (dict, list)) else {"_text": chunk})
+            if got: leads.extend(got)
+    if isinstance(payload, list):
+        for item in payload:
+            n = _crewai_norm_lead(item)
+            if n: leads.append(n)
+    return leads
+
+def _crewai_save_one(lead):
+    first_parts = lead["full_name"].strip().split()
+    first = first_parts[0] if first_parts else "CrewAI"
+    last = first_parts[-1] if len(first_parts) > 1 else first
+    # dedupe email
+    if lead["email"]:
+        try:
+            ex = zoho_exec("ZOHO_SEARCH_ZOHO_RECORDS", {"module_api_name": "Leads", "email": lead["email"], "fields": "id,Full_Name,Email", "per_page": 1})
+            data = (ex.get("data") or {}).get("data") if isinstance(ex, dict) else None
+            if data:
+                return "exists:" + str(data[0].get("id"))
+        except Exception:
+            pass
+    # dedupe phone
+    if lead["phone"]:
+        try:
+            ex = zoho_exec("ZOHO_SEARCH_ZOHO_RECORDS", {"module_api_name": "Leads", "phone": lead["phone"], "fields": "id,Full_Name,Phone", "per_page": 1})
+            data = (ex.get("data") or {}).get("data") if isinstance(ex, dict) else None
+            if data:
+                return "exists:" + str(data[0].get("id"))
+        except Exception:
+            pass
+    desc = ("Address: %s | Service: %s | Grade: %s | Score: %s | Source: CrewAI Studio Lead Automation-v1" % (lead["address"], lead["service_needed"], lead["grade"] or "B", lead["score"] or "-"))
+    resp = zoho_exec("ZOHO_CREATE_ZOHO_RECORD", {"module_api_name": "Leads", "data": [{"First_Name": first, "Last_Name": last, "Email": lead["email"], "Phone": lead["phone"], "Company": lead["address"] or "Residential", "City": lead["address"], "Description": desc, "Lead_Source": "Web Research", "Lead_Status": "Not Contacted"}]})
+    try:
+        recs = (resp.get("data") or {}).get("data") or []
+        if recs and recs[0].get("code") == "SUCCESS":
+            return "created:" + str(recs[0]["details"]["id"])
+        return "error:" + json.dumps(resp)[:300]
+    except Exception:
+        return "error:" + json.dumps(resp)[:300]
+
+@app.route("/ingest-crewai-leads", methods=["POST"])
+def ingest_crewai_leads():
+    if MACHINE_TOKEN and request.headers.get("x-machine-token") != MACHINE_TOKEN:
+        return jsonify({"error": "unauthorized"}), 401
+    payload = request.get_json(silent=True) or {}
+    # also accept form/raw text
+    if not payload and request.data:
+        try:
+            payload = json.loads(request.data.decode("utf-8", "ignore"))
+        except Exception:
+            payload = {"result": request.data.decode("utf-8", "ignore")}
+    leads = _crewai_extract_leads(payload)
+    results = []
+    for lead in leads[:100]:
+        results.append({"name": lead["full_name"], "email": lead["email"], "result": _crewai_save_one(lead)})
+    created = sum(1 for r in results if r["result"].startswith("created:"))
+    exists = sum(1 for r in results if r["result"].startswith("exists:"))
+    errors = sum(1 for r in results if r["result"].startswith("error:"))
+    return jsonify({"status": "ok", "received": len(leads), "created": created, "exists": exists, "errors": errors, "results": results}), 200
+
+
 @app.route("/run-social", methods=["GET", "POST"])
 def run_social():
     threading.Thread(target=run_social_pipeline, daemon=True).start()
