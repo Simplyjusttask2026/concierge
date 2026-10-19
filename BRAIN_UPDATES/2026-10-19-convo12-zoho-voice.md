@@ -1,0 +1,10 @@
+# BRAIN UPDATE - 2026-10-19 convo 12 (append to BRAIN.md on next full sync, do not re-append if present)
+
+## ZOHO VOICE - OWNER HAS IT - PHONE SYSTEM OF RECORD
+- OWNER said in convo 12: "i have zoho vouce" (Zoho Voice). Log as owner fact.
+- BRAIN convo 2 facts (verified from Zoho Voice mail alerts to tasksupport@simplyjusttask.com): LOCAL (321) 236-5574 "Simply Just Task LLC" (Central Florida tolled DID) + TOLLFREE (888) 566-7570 "Simply Just Task". Both ACTIVE receiving missed calls/voicemails Oct 2026. Zoho user phone on file: (352) 849-2344.
+- Do NOT confuse with RetellAI: RetellAI agent exists but PARKED, 0 phone numbers bought, low balance, DO NOT top up or pay (BRAIN FREE ONLY rule). Zoho Voice numbers are NOT Retell numbers.
+- Composio check convo 12: no direct Zoho Voice toolkit found. Searches returned Zoho CRM (zoho toolkit) Calls module only (ZOHO_LIST_CALLS / ZOHO_SEARCH_CALLS - CRM call-activity logs), not Zoho Voice dialing/SMS tools. Zoho CRM connection ACTIVE (zoho_fent-resign, Simply Just Task Team tasksupport@simplyjusttask.com). Do NOT claim Zoho Voice is connected for dialing/texting in Composio until a tool is actually verified. Owner clicks/manual use in Zoho Voice UI is separate.
+- Automation implication (per owner funnel convo 12): Zoho CRM organizes leads, free email via Zoho Mail is the proven automated contact channel. Text path = WhatsApp (fixed, owner confirmed) with approved template for cold first-text + replies. Phone path for automated outbound AI calls is NOT live under FREE ONLY (Retell parked, Zoho Voice has no verified Composio send/call tool in this check). Human steps in for in-person/phone/video consultation once booked on Cal (cal.com/simply-just-task/simplybook). Never guarantee automated calls/texts are live until a tool proves a send.
+- Also logged convo 12: WhatsApp is FIXED (owner confirmed, see 2026-10-19-convo12-whatsapp-fixed.md and 2026-10-19-convo12-whatsapp-correction.md). Do not repeat the broken claim.
+- No post/message/call/email/CrewAI kick/payment/timer was started by this note. BRAIN trail only.
