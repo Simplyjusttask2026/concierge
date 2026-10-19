@@ -16,7 +16,7 @@ PHONE = "(352) 849-2344"
 TAGLINE = "Reliable Help for Everyday Life."
 
 SERVICES = {
-    "handyman": {"label": "Handyman & Home Repairs", "pain": "the fix-it list that keeps growing", "hook": "That fix-it list isn't getting shorter."},
+    "handyman": {"label": "Handyman & Home Repairs", "pain": "fix-it lists that keep growing", "hook": "That fix-it list isn't getting shorter."},
     "cleaning": {"label": "House Cleaning", "pain": "guests coming and the house is not ready", "hook": "Company coming? House not ready?"},
     "lawn": {"label": "Lawn & Yard Care", "pain": "overgrown yard / code violation letter", "hook": "Yard getting away from you?"},
     "pressure": {"label": "Pressure Washing", "pain": "dirty driveway and siding", "hook": "Your driveway called - it wants its color back."},
@@ -24,7 +24,6 @@ SERVICES = {
     "senior": {"label": "Senior & Family Help", "pain": "mom/dad needs a hand around the house", "hook": "Could Mom or Dad use an extra hand at home?"},
 }
 
-# Compliance: reject drafts with any of these (BRAIN hard rules)
 BANNED = [
     "guaranteed price", "guarantee you", "exact price", "% off", "discount",
     "calendly", "cal.com/simply-justtask/15min", "we don't do that", "we dont do that",
@@ -59,7 +58,6 @@ def draft_x(service: str) -> str:
     return txt[:280]
 
 def draft_nextdoor(service: str) -> str:
-    # Neighbor voice per SOPS/NEXTDOOR_KERNEL.md - short, personal, ends with a question
     s = SERVICES[service]
     return (f"Hi neighbors - I'm Anthony, I run Simply Just Task right here in Apopka. "
             f"We help neighbors with {s['label'].lower()} and the {s['pain']}. "
@@ -67,7 +65,6 @@ def draft_nextdoor(service: str) -> str:
             f"{BOOKING} / {PHONE} - what's the timing you're hoping for?")
 
 def produce_batch(service: str) -> dict:
-    """One full free batch for one service. Draft-only. Owner go required to post."""
     drafts = {
         "facebook": draft_facebook(service),
         "instagram": draft_instagram(service),
