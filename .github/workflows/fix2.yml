@@ -1,0 +1,32 @@
+name: Fix 2 - booking link + BRAIN merge (manual only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fix booking link in concierge.py
+        run: python scripts/fix2_patch.py
+      - name: Merge BRAIN_UPDATES into BRAIN.md
+        run: python scripts/fix2_merge_brain.py
+      - name: Commit both fixes back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add concierge.py BRAIN.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit (already fixed/merged)."
+          else
+            git commit -m "Fix 2: booking link to /simplybook + merge BRAIN_UPDATES into BRAIN.md"
+            git push origin main
+          fi
