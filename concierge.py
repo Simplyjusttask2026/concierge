@@ -412,7 +412,7 @@ import threading
 QUALIFY_PROMPT = """You are the lead qualification crew for Simply Just Task, a Central Florida
 residential services company (cleaning, handyman, lawn/landscape, pressure washing,
 errands, concierge, small engine, AI/tech). Score this lead and reply with ONLY JSON:
-{"status": one of "Pre-Qualified", "Not Qualified", "Junk Lead", "Recycled",
+{"status": one of "Pre-Qualified", "Not Qualified", "Junk Lead", "Recycled", "Recycled",
  "score": 0-100, "notes": "2-3 sentence AI note on intent, fit, and suggested next step"}
 Rules: Pre-Qualified = real person, residential service fit, reachable contact info,
 some buying intent. Not Qualified = out of area/commercial/vague. Junk = spam/test/gibberish."""
