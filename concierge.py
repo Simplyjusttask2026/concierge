@@ -159,6 +159,14 @@ def book_estimate(full_name: str, email: str, phone: str, address: str,
                       json=body, timeout=30)
     d = r.json()
     if r.status_code in (200, 201) and d.get("status") == "success":
+        # Frankenstein Part 2: booking writes back to Zoho as Appointment Set (owner added 2026-10-20).
+        try:
+            got = zoho_exec("ZOHO_SEARCH_ZOHO_RECORDS", {"module_api_name": "Leads", "email": email, "fields": "id,Full_Name,Email,Description", "per_page": 1})
+            found = (got.get("data") or {}).get("data") if isinstance(got, dict) else None
+            if found:
+                zoho_exec("ZOHO_UPDATE_ZOHO_RECORD", {"module_api_name": "Leads", "data": [{"id": str(found[0]["id"]), "Lead_Status": "Appointment Set", "Description": ((found[0].get("Description") or "") + "\n[Cal booked %s] Appointment Set via Concierge book_estimate." % start_iso)[:2000]}]})
+        except Exception:
+            pass
         return ("BOOKED! Confirmation email sent to " + email +
                 ". Booking details: " + json.dumps(d.get("data", {}))[:300])
     return "Booking failed: " + json.dumps(d)[:300]
@@ -404,7 +412,7 @@ import threading
 QUALIFY_PROMPT = """You are the lead qualification crew for Simply Just Task, a Central Florida
 residential services company (cleaning, handyman, lawn/landscape, pressure washing,
 errands, concierge, small engine, AI/tech). Score this lead and reply with ONLY JSON:
-{"status": one of "Pre-Qualified", "Not Qualified", "Junk Lead",
+{"status": one of "Pre-Qualified", "Not Qualified", "Junk Lead", "Recycled",
  "score": 0-100, "notes": "2-3 sentence AI note on intent, fit, and suggested next step"}
 Rules: Pre-Qualified = real person, residential service fit, reachable contact info,
 some buying intent. Not Qualified = out of area/commercial/vague. Junk = spam/test/gibberish."""
@@ -452,14 +460,21 @@ def run_daily_pipeline():
                 q = _llm_json(QUALIFY_PROMPT, json.dumps(ld, default=str)[:2000])
                 entry["ai_score"] = q.get("score")
                 entry["ai_notes"] = q.get("notes")
-                new_status = q.get("status", "Not Qualified")
+                raw_status = q.get("status", "Not Qualified")
+                # Frankenstein Part 2 recycle pool (owner rule, 2026-10-20): Not Qualified / Recycled = keep, do not drop.
+                # Owner added Zoho Lead_Status values Appointment Set + Recycled and Lead_Source values CrewAI/Nextdoor/Instagram/TikTok/YouTube/LinkedIn.
+                # Junk Lead is the only true drop.
+                new_status = "Recycled" if raw_status in ("Not Qualified", "Recycled") else raw_status
                 entry["new_status"] = new_status
-                note = "\n\n[AI Qualifier %s] Score %s/100. %s" % (
-                    report["date"], q.get("score"), q.get("notes"))
+                recycled_note = ""
+                if new_status == "Recycled":
+                    recycled_note = " | Recycle follow-up: +30 days, never delete."
+                note = "\n\n[AI Qualifier %s] Score %s/100. %s%s" % (
+                    report["date"], q.get("score"), q.get("notes"), recycled_note)
                 zoho_exec("ZOHO_UPDATE_ZOHO_RECORD", {
                     "module_api_name": "Leads",
                     "data": [{"id": str(ld["id"]), "Lead_Status": new_status,
-                              "Description": (ld.get("Description") or "") + note}]})
+                              "Description": ((ld.get("Description") or "") + note)[:2000]}]})
                 if (new_status == "Pre-Qualified" and ld.get("Email")
                         and len(report["outreach"]) >= OUTREACH_DAILY_CAP):
                     entry["ai_notes"] = (entry.get("ai_notes") or "") + " | Outreach QUEUED for tomorrow (daily cap)"
@@ -579,7 +594,7 @@ def run_social_pipeline():
 # POST /ingest-crewai-leads  {leads:[...]}  or {result: "..."} or {output: "..."}
 # CrewAI Studio hunter finishes -> scripts/daily_job.py sends its result here.
 # Each lead is saved to Zoho CRM (dedupe by email, then phone) as
-# Lead_Status=Not Contacted, Lead_Source=Web Research (Zoho has no CrewAI value yet),
+# Lead_Status=Not Contacted, Lead_Source=CrewAI (owner added CrewAI to Zoho Lead_Source 2026-10-20 convo, verified live),
 # with "Source: CrewAI Studio Lead Automation-v1" in Description.
 # Optional guard: set MACHINE_TOKEN on Render + GitHub; send x-machine-token header.
 MACHINE_TOKEN = os.environ.get("MACHINE_TOKEN", "")
@@ -673,7 +688,7 @@ def _crewai_save_one(lead):
         except Exception:
             pass
     desc = ("Address: %s | Service: %s | Grade: %s | Score: %s | Source: CrewAI Studio Lead Automation-v1" % (lead["address"], lead["service_needed"], lead["grade"] or "B", lead["score"] or "-"))
-    resp = zoho_exec("ZOHO_CREATE_ZOHO_RECORD", {"module_api_name": "Leads", "data": [{"First_Name": first, "Last_Name": last, "Email": lead["email"], "Phone": lead["phone"], "Company": lead["address"] or "Residential", "City": lead["address"], "Description": desc, "Lead_Source": "Web Research", "Lead_Status": "Not Contacted"}]})
+    resp = zoho_exec("ZOHO_CREATE_ZOHO_RECORD", {"module_api_name": "Leads", "data": [{"First_Name": first, "Last_Name": last, "Email": lead["email"], "Phone": lead["phone"], "Company": lead["address"] or "Residential", "City": lead["address"], "Description": desc, "Lead_Source": "CrewAI", "Lead_Status": "Not Contacted"}]})
     try:
         recs = (resp.get("data") or {}).get("data") or []
         if recs and recs[0].get("code") == "SUCCESS":
