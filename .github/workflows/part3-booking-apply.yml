@@ -1,0 +1,32 @@
+name: Part3 Real Appointments - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fetch Part3 booking patch
+        run: |
+          curl -L -o scripts/part3_booking_patch.py "https://backend.composio.dev/api/v3/sl/v_q5cIz_B0"
+          head -c 200 scripts/part3_booking_patch.py
+          echo
+      - name: Apply Part3 booking patch
+        run: python scripts/part3_booking_patch.py
+      - name: Commit back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add concierge.py scripts/part3_booking_patch.py
+          if git diff --cached --quiet; then
+            echo "No changes to commit (already patched)."
+          else
+            git commit -m "Frankenstein Part3: real confirmed appointments + Zoho Task sync"
+            git push origin main
+          fi
