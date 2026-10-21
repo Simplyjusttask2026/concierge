@@ -18,8 +18,9 @@ jobs:
         run: python -m py_compile concierge.py scripts/nextdoor_watcher.py
       - name: Watcher smoke test
         run: |
-          echo '[{"text":"Looking for recommendations for a landscaper in Apopka to mow and trim my yard","author_first":"Test","age_min":60,"job":"lawn care"},{"text":"Found dog lost pet please share","author_first":"X","age_min":10,"job":"pet"}]' > /tmp/sample.json
-          python scripts/nextdoor_watcher.py /tmp/sample.json
+          python scripts/nextdoor_watcher.py --selftest
+          echo '[{"author":"Test Neighbor","text":"Looking for recommendations for a landscaper in Apopka, need mowing help","age_min":30},{"author":"Fake Two","text":"Lost dog please share","age_min":30}]' > /tmp/sample.json
+          python scripts/nextdoor_watcher.py --input /tmp/sample.json
       - name: Commit back to main
         run: |
           git config user.name "github-actions[bot]"
@@ -28,6 +29,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit (already patched)."
           else
-            git commit -m "Call Center v1: 8-21ET gate, human call list, STOP; Nextdoor watcher CLI v1 draft-only"
+            git commit -m "Call Center v2: 8-21ET email gate, STOP suppression, human call list in report"
             git push origin main
           fi
