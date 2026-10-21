@@ -977,6 +977,7 @@ def debug():
         "composio_user_id": COMPOSIO_USER_ID,
         "zoho_direct_bypass_configured": _zoho_direct_configured(),
         "zoho_path": "composio-first,direct-crm-fallback-v1",
+        "frankenstein_closeout": "whatsapp-drafts+recycle-report-v1",
     })
 
 @app.route("/")
@@ -1098,6 +1099,21 @@ def run_daily_pipeline():
         lines.append("  source: %s | status: %s -> %s | score: %s" % (
             e.get("source"), e.get("old_status"), e.get("new_status"), e.get("ai_score", "-")))
         lines.append("  AI notes: %s" % (e.get("ai_notes") or "-"))
+    lines += ["", "=== WHATSAPP DRAFTS (DRAFT ONLY - NOT SENT) ==="]
+    lines.append("WhatsApp cold text blocked until approved template + VERIFIED. Owner-send drafts only.")
+    _wa = [e for e in report["leads"] if e.get("phone") and e.get("new_status") in ("Pre-Qualified", "Attempted to Contact")]
+    if not _wa:
+        lines.append("- none today")
+    for e in _wa:
+        _parts = str(e.get("name") or "").split()
+        _first = _parts[0] if _parts else "there"
+        lines.append("- DRAFT to %s (%s): Hello %s, this is Anthony from Simply Just Task. We received your request and can help. Reply YES to talk or STOP to opt out. Booking: %s" % (e.get("name"), e.get("phone"), _first, CAL_LINK))
+    lines += ["", "=== RECYCLE CANDIDATES (DRAFT ONLY - NO SEND) ==="]
+    _rc = [e for e in report["leads"] if e.get("new_status") in ("Recycled", "Contact in Future")]
+    if not _rc:
+        lines.append("- none in newest 50")
+    for e in _rc:
+        lines.append("- %s | status: %s | follow-up +30 days, never delete" % (e.get("name"), e.get("new_status")))
     lines += ["", "=== OUTREACH COPIES ==="]
     for o in report["outreach"]:
         lines.append("TO: %s (%s) | sent=%s" % (o.get("to"), o.get("name"), o.get("sent")))
