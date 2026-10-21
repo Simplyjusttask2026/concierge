@@ -10,3 +10,6 @@ Live check 2026-10-21: 1 phone (+1 352-849-2344, Simply Just Task), code_verific
 
 ## Assistant after owner says approved
 Re-check templates + phone numbers. Only then propose (separately) wiring a send step in concierge.py - still approval-first, 8am-9pm local, STOP honored, cap and report copies. Do NOT cold-blast strangers.
+
+## UPDATE 2026-10-21
+API create tried once: 400 WABA not allowed to manage templates. Do not retry via API. Owner Meta Business Suite step remains; templates 0, phone NOT_VERIFIED at last check.

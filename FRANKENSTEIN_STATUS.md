@@ -19,3 +19,9 @@ Live-tested 2026-10-21 overnight closeout. Summary only; BRAIN.md + BRAIN_UPDATE
 2. WhatsApp Meta: verify phone + create/approve template sjt_booking_intro_v1. Templates 0, NOT_VERIFIED tonight.
 3. Supervised 9AM proof (CrewAI to Zoho to daily to social, reports). Not run at night - outreach safety 8am-9pm.
 4. Later: TikTok/LinkedIn/YouTube in concierge, Nextdoor timer, Email Clean rules - each needs its own go.
+
+## BUILT 2026-10-21 OVERNIGHT
+- Call Center: /call-center plan v1 draft-only + daily report section. Unit-tested fake leads, compile OK.
+- Nextdoor: watcher v2 CLI, live Kernel scan 3 leads scored 80 saved to Zoho verified by ID, 1 watch, NO post/comment/DM sent (owner go per item).
+- Nextdoor timer workflow every 2h proves watcher logic only; live Kernel hunt needs chat/agent session.
+- WhatsApp template API FAILED WABA not allowed. Owner Meta step unchanged.

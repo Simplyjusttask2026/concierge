@@ -17,3 +17,6 @@ Hi, thanks for reaching out to Simply Just Task. We do [service] for homes in Ce
 
 ## ESCALATE TO HUMAN ONLY
 Consultation, home visit, job, discount over 10%, project over $1000, contracts, payment plans, complaints.
+
+## LIVE BUILD 2026-10-21 - call-center-plan-v1
+GET /call-center = draft-only queues (email/whatsapp/human-call/recycle Day3-Day7-Day12/STOP). Sends NOTHING. WhatsApp autosend OFF until template APPROVED + phone VERIFIED + owner enable. Human calls only 8am-9pm ET.
