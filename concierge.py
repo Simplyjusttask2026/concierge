@@ -978,7 +978,8 @@ def debug():
         "zoho_direct_bypass_configured": _zoho_direct_configured(),
         "zoho_path": "composio-first,direct-crm-fallback-v1",
         "frankenstein_closeout": "whatsapp-drafts+recycle-report-v1",
-        "call_center": "call-center-plan-v1",
+        "call_center": "call-center-v2,email-gate-8-21ET,stop-line,human-call-list,whatsapp-draft",
+        "nextdoor": "kernel-personal-auth,watcher-v2,draft-only",
     })
 
 @app.route("/")
@@ -1040,7 +1041,7 @@ def _call_center_plan(leads, now=None):
 OUTREACH_PROMPT = """You are the outreach crew for Simply Just Task. Write a short, warm,
 plain-text follow-up email (under 120 words) from Anthony at Simply Just Task to this lead.
 Mention their service need, offer a FREE no-pressure estimate, include this booking link:
-""" + CAL_LINK + """ (consultation) or """ + CAL_HOME_VISIT_LINK + """ (home visit) and phone (888) 566-7570. Sign off as 'Anthony & the Simply Just Task Team'.
+""" + CAL_LINK + """ (consultation) or """ + CAL_HOME_VISIT_LINK + """ (home visit) and phone (888) 566-7570. Always end with: Reply STOP to opt out. Sign off as 'Anthony & the Simply Just Task Team'.
 Reply with ONLY JSON: {"subject": "...", "body": "..."}"""
 
 def _llm_json(system, user):
@@ -1054,9 +1055,10 @@ def _llm_json(system, user):
     return json.loads(txt.strip())
 
 def run_daily_pipeline():
+    _outreach_open = _call_center_window_open()
     report = {"date": datetime.datetime.now(
         datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d %H:%M ET"),
-        "leads": [], "outreach": [], "errors": [], "cal_sync": {}}
+        "leads": [], "outreach": [], "errors": [], "cal_sync": {}, "outreach_open": _outreach_open}
     try:
         resp = zoho_exec("ZOHO_GET_ZOHO_RECORDS", {
             "module_api_name": "Leads",
@@ -1101,7 +1103,11 @@ def run_daily_pipeline():
                 if (new_status == "Pre-Qualified" and ld.get("Email")
                         and len(report["outreach"]) >= OUTREACH_DAILY_CAP):
                     entry["ai_notes"] = (entry.get("ai_notes") or "") + " | Outreach QUEUED for tomorrow (daily cap)"
-                elif new_status == "Pre-Qualified" and ld.get("Email"):
+                elif new_status == "Pre-Qualified" and ld.get("Email") and _lead_is_stopped(ld):
+                    entry["outreach_suppressed"] = "STOP/opt-out in lead notes - do not contact"
+                elif new_status == "Pre-Qualified" and ld.get("Email") and not _outreach_open:
+                    entry["outreach_held"] = "outside 8am-9pm ET - hold for next 9AM run, no send at night"
+                elif new_status == "Pre-Qualified" and ld.get("Email") and _outreach_open:
                     try:
                         m = _llm_json(OUTREACH_PROMPT, json.dumps(ld, default=str)[:1500])
                         send = zoho_exec("ZOHO_MAIL_MESSAGES_SEND_EMAIL", {
@@ -1140,6 +1146,8 @@ def run_daily_pipeline():
         lines.append("  AI notes: %s" % (e.get("ai_notes") or "-"))
     _ccp=_call_center_plan(report["leads"])
     lines += ["", "=== CALL CENTER PLAN v1 (DRAFT ONLY - SENDS NOTHING) ===", "counts=%s window=%s wa_autosend=%s" % (_ccp["counts"],_ccp["window_open_8am_9pm_et"],_ccp["whatsapp_autosend_enabled"])]
+    for _c in _ccp.get("human_call_list") or []:
+        lines.append("- HUMAN CALL %s (%s) | %s" % (_c.get("name"), _c.get("phone"), _c.get("script")))
     lines += ["", "=== WHATSAPP DRAFTS (DRAFT ONLY - NOT SENT) ==="]
     lines.append("WhatsApp cold text blocked until approved template + VERIFIED. Owner-send drafts only.")
     _wa = [e for e in report["leads"] if e.get("phone") and e.get("new_status") in ("Pre-Qualified", "Attempted to Contact")]
