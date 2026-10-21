@@ -38,11 +38,13 @@ REPORT_EMAIL = os.environ.get("REPORT_EMAIL", "tasksupport@simplyjusttask.com")
 REPORT_CC = os.environ.get("REPORT_CC", "a.quinones@simplyjusttask.com")
 ZOHO_MAIL_ACCOUNT_ID = os.environ.get("ZOHO_MAIL_ACCOUNT_ID", "8048488000000008002")  # tasksupport mailbox
 # Direct Zoho CRM bypass (owner-entered in Render only; never in chat/code).
-ZOHO_CLIENT_ID = os.environ.get("ZOHO_CLIENT_ID", "")
-ZOHO_CLIENT_SECRET = os.environ.get("ZOHO_CLIENT_SECRET", "")
-ZOHO_REFRESH_TOKEN = os.environ.get("ZOHO_REFRESH_TOKEN", "")
-ZOHO_ACCOUNTS_URL = os.environ.get("ZOHO_ACCOUNTS_URL", "https://accounts.zoho.com").rstrip("/")
-ZOHO_CRM_API_URL = os.environ.get("ZOHO_CRM_API_URL", "https://www.zohoapis.com").rstrip("/")
+def _clean_secret_env(name, default=""):
+    return os.environ.get(name, default).strip().strip(chr(34)).strip(chr(39)).strip()
+ZOHO_CLIENT_ID = _clean_secret_env("ZOHO_CLIENT_ID")
+ZOHO_CLIENT_SECRET = _clean_secret_env("ZOHO_CLIENT_SECRET")
+ZOHO_REFRESH_TOKEN = _clean_secret_env("ZOHO_REFRESH_TOKEN")
+ZOHO_ACCOUNTS_URL = _clean_secret_env("ZOHO_ACCOUNTS_URL", "https://accounts.zoho.com").rstrip("/")
+ZOHO_CRM_API_URL = _clean_secret_env("ZOHO_CRM_API_URL", "https://www.zohoapis.com").rstrip("/")
 _zoho_direct_token = {"value": "", "expires_at": 0}
 ZOHO_FROM = os.environ.get("ZOHO_FROM_ADDRESS", "tasksupport@simplyjusttask.com")
 CAL_HEADERS = {
@@ -977,7 +979,14 @@ def debug():
         "composio_user_id": COMPOSIO_USER_ID,
         "zoho_direct_bypass_configured": _zoho_direct_configured(),
         "zoho_path": "composio-first,direct-crm-fallback-v1",
-        "zoho_direct_diag": "error-code-v1",
+        "zoho_direct_diag": "error-code-v2-clean-format",
+        "zoho_accounts_host": ZOHO_ACCOUNTS_URL.split("://")[-1].split("/")[0],
+        "zoho_crm_host": ZOHO_CRM_API_URL.split("://")[-1].split("/")[0],
+        "zoho_client_id_prefix_ok": ZOHO_CLIENT_ID.startswith("1000."),
+        "zoho_refresh_prefix_ok": ZOHO_REFRESH_TOKEN.startswith("1000."),
+        "zoho_client_id_len": len(ZOHO_CLIENT_ID),
+        "zoho_client_secret_len": len(ZOHO_CLIENT_SECRET),
+        "zoho_refresh_token_len": len(ZOHO_REFRESH_TOKEN),
         "frankenstein_closeout": "whatsapp-drafts+recycle-report-v1",
         "call_center": "call-center-v2,email-gate-8-21ET,stop-line,human-call-list,whatsapp-draft",
         "nextdoor": "kernel-personal-auth,watcher-v2,draft-only",
