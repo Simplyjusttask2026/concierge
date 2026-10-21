@@ -1,0 +1,24 @@
+name: Call Center Nextdoor Apply - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python scripts/call_center_patch.py
+      - run: python scripts/nextdoor_patch.py
+      - run: python -m py_compile concierge.py scripts/nextdoor_watcher.py
+      - run: python scripts/nextdoor_watcher.py --selftest
+      - name: Commit back to main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add concierge.py scripts/nextdoor_watcher.py scripts/call_center_patch.py scripts/nextdoor_patch.py SOPS/CALL_CENTER.md SOPS/WHATSAPP_TEMPLATE.md FRANKENSTEIN_STATUS.md .github/workflows/call-center-nextdoor-apply.yml
+          if git diff --cached --quiet; then echo 'No changes'; else git commit -m 'Call Center plan v1 + Nextdoor watcher v2 (draft-only)'; git push origin main; fi
