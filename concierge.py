@@ -63,7 +63,7 @@ def _zoho_direct_access_token():
     d = r.json() if r.content else {}
     token = d.get("access_token")
     if not token:
-        raise Exception("Direct Zoho token failed HTTP %s: %s" % (r.status_code, json.dumps(d)[:250]))
+        raise Exception("Direct Zoho token failed HTTP %s: error=%s" % (r.status_code, str(d.get("error") or "unknown")[:80]))
     _zoho_direct_token["value"] = token
     _zoho_direct_token["expires_at"] = now + int(d.get("expires_in") or 3600)
     return token
@@ -141,7 +141,7 @@ def zoho_exec(slug, args):
         if not (isinstance(direct, dict) and direct.get("error")):
             print("ZOHO VIA DIRECT BYPASS:", slug)
             return direct
-        return {"error": "Composio failed (%s); direct bypass failed (%s)" % (json.dumps(resp, default=str)[:200], str(direct.get("error"))[:200])}
+        return {"error": "Direct bypass failed (%s); Composio failed (%s)" % (str(direct.get("error"))[:220], json.dumps(resp, default=str)[:80])}
     return resp
 def zoho_ok(resp):
     return isinstance(resp, dict) and not resp.get("error") and resp.get("successful", True)
@@ -977,6 +977,7 @@ def debug():
         "composio_user_id": COMPOSIO_USER_ID,
         "zoho_direct_bypass_configured": _zoho_direct_configured(),
         "zoho_path": "composio-first,direct-crm-fallback-v1",
+        "zoho_direct_diag": "error-code-v1",
         "frankenstein_closeout": "whatsapp-drafts+recycle-report-v1",
         "call_center": "call-center-v2,email-gate-8-21ET,stop-line,human-call-list,whatsapp-draft",
         "nextdoor": "kernel-personal-auth,watcher-v2,draft-only",
