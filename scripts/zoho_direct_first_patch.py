@@ -95,7 +95,7 @@ old4 = """    crm_test = "not tested"
             cr = requests.get(ZOHO_CRM_API_URL + "/crm/v8/Leads", params={"per_page": 1, "fields": "id"}, headers={"Authorization": "Zoho-oauthtoken " + at}, timeout=30)
             crm_test = "OK - Zoho CRM read worked" if cr.status_code in (200, 204) else ("failed HTTP " + str(cr.status_code))
         except Exception:
-            crm_test = "network error during CRM test" """
+            crm_test = "network error during CRM test\""""
 new4 = """    crm_test = "not tested"
     at = d.get("access_token")
     if at:
@@ -115,7 +115,7 @@ new4 = """    crm_test = "not tested"
             rc = requests.get(ZOHO_CRM_API_URL + "/crm/v8/Leads", params={"per_page": 1, "fields": "id"}, headers={"Authorization": "Zoho-oauthtoken " + rat}, timeout=30)
             refresh_test = "OK - refresh token works for CRM read" if rc.status_code in (200, 204) else ("failed HTTP " + str(rc.status_code))
     except Exception:
-        refresh_test = "network error during refresh test" """
+        refresh_test = "network error during refresh test\""""
 if src.count(old4) != 1:
     print("FAIL: anchor helper crm_test not found exactly once"); sys.exit(1)
 src = src.replace(old4, new4, 1)

@@ -182,6 +182,17 @@ def _composio_failed(resp):
     return "No connected account found" in txt or "ActionExecute_ConnectedAccountNotFound" in txt
 
 def zoho_exec(slug, args):
+    # zoho-direct-first-v1: CRM tries direct Render->Zoho FIRST, so Zoho works
+    # with no Composio at all (no Composio quota/chat dependency). The Composio
+    # bridge is only a backup for CRM. Zoho Mail slugs still use Composio first.
+    is_crm = slug.startswith("ZOHO_") and "MAIL" not in slug
+    direct_error = None
+    if is_crm and _zoho_direct_configured():
+        direct = _zoho_direct_exec(slug, args)
+        if not (isinstance(direct, dict) and direct.get("error")):
+            print("ZOHO VIA DIRECT (primary, no Composio):", slug)
+            return direct
+        direct_error = str(direct.get("error"))[:220]
     try:
         resp = composio.tools.execute(slug=slug, arguments=args, user_id=COMPOSIO_USER_ID, dangerously_skip_version_check=True)
     except TypeError:
@@ -191,12 +202,16 @@ def zoho_exec(slug, args):
             resp = {"error": str(e)}
     except Exception as e:
         resp = {"error": str(e)}
-    if _composio_failed(resp) and slug.startswith("ZOHO_") and "MAIL" not in slug:
+    if _composio_failed(resp) and is_crm:
+        if direct_error:
+            return {"error": "Direct Zoho failed (%s); Composio backup failed (%s)" % (direct_error, json.dumps(resp, default=str)[:80])}
         direct = _zoho_direct_exec(slug, args)
         if not (isinstance(direct, dict) and direct.get("error")):
             print("ZOHO VIA DIRECT BYPASS:", slug)
             return direct
         return {"error": "Direct bypass failed (%s); Composio failed (%s)" % (str(direct.get("error"))[:220], json.dumps(resp, default=str)[:80])}
+    if direct_error and is_crm:
+        print("ZOHO VIA COMPOSIO BRIDGE (direct failed, backup worked):", slug)
     return resp
 def zoho_ok(resp):
     return isinstance(resp, dict) and not resp.get("error") and resp.get("successful", True)
@@ -1035,7 +1050,8 @@ def debug():
         "cal_booking_sync": "part3-v1-real-confirmed-only",
         "composio_user_id": COMPOSIO_USER_ID,
         "zoho_direct_bypass_configured": _zoho_direct_configured(),
-        "zoho_path": "composio-first,direct-crm-fallback-v1",
+        "zoho_path": "direct-first,composio-bridge-fallback-v1",
+        "zoho_direct_first": "zoho-direct-first-v1",
         "zoho_direct_diag": "error-code-v2-clean-format",
         "zoho_token_helper": "zoho-token-helper-v1",
         "zoho_accounts_host": ZOHO_ACCOUNTS_URL.split("://")[-1].split("/")[0],
@@ -1468,6 +1484,19 @@ def call_center():
         return jsonify({"version":"call-center-plan-v1","error":str(e)[:300]}), 207
 
 
+@app.route("/zoho-direct-test", methods=["GET"])
+def zoho_direct_test():
+    # Tests ONLY the direct Render->Zoho path. Composio is not called here.
+    if not _zoho_direct_configured():
+        return jsonify({"version": "zoho-direct-first-v1", "direct_configured": False, "direct_ok": False, "error": "Direct Zoho not configured in Render env"}), 207
+    resp = _zoho_direct_exec("ZOHO_GET_ZOHO_RECORDS", {"module_api_name": "Leads", "fields": "id", "per_page": 1})
+    if isinstance(resp, dict) and not resp.get("error"):
+        rows = (resp.get("data") or {}).get("data") or []
+        return jsonify({"version": "zoho-direct-first-v1", "direct_configured": True, "direct_ok": True, "via": resp.get("via", "direct_zoho"), "sample_count": len(rows)}), 200
+    err = str((resp or {}).get("error") or "unknown")[:300] if isinstance(resp, dict) else "unknown"
+    return jsonify({"version": "zoho-direct-first-v1", "direct_configured": True, "direct_ok": False, "error": err}), 207
+
+
 @app.route("/composio-zoho-connect", methods=["GET"])
 def composio_zoho_connect():
     # Owner connects Zoho to Composio (the middleman) for COMPOSIO_USER_ID.
@@ -1541,11 +1570,23 @@ def zoho_token_helper():
             crm_test = "OK - Zoho CRM read worked" if cr.status_code in (200, 204) else ("failed HTTP " + str(cr.status_code))
         except Exception:
             crm_test = "network error during CRM test"
+    refresh_test = "not tested"
+    try:
+        rr = requests.post(ZOHO_ACCOUNTS_URL + "/oauth/v2/token", data={"grant_type": "refresh_token", "client_id": ZOHO_CLIENT_ID, "client_secret": ZOHO_CLIENT_SECRET, "refresh_token": token}, timeout=30)
+        rd = rr.json() if rr.content else {}
+        rat = rd.get("access_token")
+        if not rat:
+            refresh_test = "failed error=" + str(rd.get("error") or "unknown")[:80]
+        else:
+            rc = requests.get(ZOHO_CRM_API_URL + "/crm/v8/Leads", params={"per_page": 1, "fields": "id"}, headers={"Authorization": "Zoho-oauthtoken " + rat}, timeout=30)
+            refresh_test = "OK - refresh token works for CRM read" if rc.status_code in (200, 204) else ("failed HTTP " + str(rc.status_code))
+    except Exception:
+        refresh_test = "network error during refresh test"
     safe = str(token).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     out = """<!doctype html><html><head><title>Zoho Refresh Token</title></head>
 <body style="font-family:Arial;max-width:640px;margin:40px auto;padding:0 16px">
 <h2>Copy this refresh token into Render</h2>
-<p>CRM test: <b>""" + crm_test + """</b></p>
+<p>CRM test: <b>""" + crm_test + """</b><br>Refresh test: <b>""" + refresh_test + """</b></p><p>Only save this token in Render if Refresh test says OK.</p>
 <p>Render - sjt-concierge - Environment - ZOHO_REFRESH_TOKEN - paste this - Save. Then tell the assistant: render zoho saved.</p>
 <textarea readonly style="width:100%;height:90px">""" + safe + """</textarea>
 <p>Token fingerprint (safe to share, it is NOT the token): <b>""" + _zoho_token_fingerprint(token)["fp"] + """</b> parts=""" + str(_zoho_token_fingerprint(token)["parts"]) + """<br>After you Save in Render and it redeploys, /debug zoho_refresh_fp must match this fingerprint.</p>
