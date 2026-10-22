@@ -25,3 +25,9 @@ Live-tested 2026-10-21 overnight closeout. Summary only; BRAIN.md + BRAIN_UPDATE
 - Nextdoor: watcher v2 CLI, live Kernel scan 3 leads scored 80 saved to Zoho verified by ID, 1 watch, NO post/comment/DM sent (owner go per item).
 - Nextdoor timer workflow every 2h proves watcher logic only; live Kernel hunt needs chat/agent session.
 - WhatsApp template API FAILED WABA not allowed. Owner Meta step unchanged.
+
+## ADDENDUM 2026-10-22 (verified live)
+- Studio test run finished, Zoho leads created 2026-10-22 = 0. Manual Studio runs do not use the GitHub bridge (`scripts/daily_job.py`).
+- Fix #3 updated: Render Zoho keys ARE present, but direct token test fails `invalid_code`. Owner must regenerate `ZOHO_REFRESH_TOKEN` in Render only. Composio fallback read verified via `/call-center` on 2026-10-22.
+- Hunt-only 3x/day added: `crewai-hunt-3x.yml` + `HUNT_ONLY` in `daily_job.py` (11AM/3PM/7PM ET, Zoho ingest only, NO outreach).
+- Supervised 9AM proof still pending (daylight 8AM-9PM ET only). WhatsApp Meta still owner-only. `MACHINE_TOKEN` missing on both GitHub and Render - set both together or neither.

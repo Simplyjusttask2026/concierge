@@ -14,6 +14,8 @@ Does:
  6. ONLY THEN triggers Render /run-daily (lead qualify + outreach, max 10/day)
     and /run-social (1 post/day per connected platform + replies + lead capture)
     so new CrewAI leads are in Zoho before the email machine runs.
+    HUNT_ONLY=1 mode (crewai-hunt-3x.yml, 11AM/3PM/7PM ET): steps 1-5 only.
+    It NEVER triggers /run-daily or /run-social, so no outreach is sent.
 
 Does NOT:
  - Spend any money (free GitHub Actions + free Render + free Zoho tier only)
@@ -30,9 +32,15 @@ import requests
 NY = ZoneInfo("America/New_York")
 now_ny = datetime.datetime.now(NY)
 force = os.environ.get("FORCE_RUN", "0") == "1"
-print(f"Now in America/New_York: {now_ny.isoformat()} force={force}")
+hunt_only = os.environ.get("HUNT_ONLY", "0") == "1"
+force_hunt = os.environ.get("FORCE_HUNT", "0") == "1"
+print(f"Now in America/New_York: {now_ny.isoformat()} force={force} hunt_only={hunt_only} force_hunt={force_hunt}")
 
-if not force and now_ny.hour != 9:
+if hunt_only:
+    if not (force or force_hunt) and now_ny.hour not in (11, 15, 19):
+        print("HUNT_ONLY: Not 11AM/3PM/7PM New York - skipping (DST guard).")
+        sys.exit(0)
+elif not force and now_ny.hour != 9:
     print("Not 9AM New York - skipping (DST guard).")
     sys.exit(0)
 
@@ -159,6 +167,12 @@ except Exception as e:
     sys.exit(1)
 
 # 5) Trigger Render pipelines (new leads are now in Zoho first)
+# HUNT_ONLY: stop after Zoho ingest - no outreach / no social.
+if hunt_only:
+    print("HUNT_ONLY: Zoho ingest complete - skipping /run-daily and /run-social (no outreach).")
+    print("Hunt-only job finished.")
+    sys.exit(0)
+
 for path in ("/run-daily", "/run-social"):
     try:
         r = requests.get(concierge_url.rstrip("/") + path, timeout=60)
