@@ -1,0 +1,40 @@
+name: CrewAI Hunt Only - 3x Day
+
+on:
+  schedule:
+    - cron: "0 15 * * *"
+    - cron: "0 16 * * *"
+    - cron: "0 19 * * *"
+    - cron: "0 20 * * *"
+    - cron: "0 23 * * *"
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      force_hunt:
+        description: "Run hunt + Zoho ingest now even if not 11/15/19 ET (hunt only - NO outreach)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - name: Run hunt-only job (CrewAI -> Zoho ingest, no outreach)
+        env:
+          CREWAI_BEARER_TOKEN: ${{ secrets.CREWAI_BEARER_TOKEN }}
+          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
+          CREWAI_KICKOFF_URL: "https://simply-just-task-lead-automation-v1-d581327-df40e8a1.crewai.com/kickoff"
+          TARGET_PROFILE: "Local residential homeowners in Central Florida (Apopka area) who need home services, concierge and lifestyle support for Simply Just Task. Find, verify, score and qualify them. Free only, no paid outreach."
+          CONCIERGE_URL: "https://sjt-concierge.onrender.com/"
+          HUNT_ONLY: "1"
+          FORCE_HUNT: ${{ github.event_name == 'workflow_dispatch' && inputs.force_hunt == 'true' && '1' || '0' }}
+        run: python scripts/daily_job.py
