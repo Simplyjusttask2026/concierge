@@ -54,6 +54,14 @@ CAL_HEADERS = {
 
 composio = Composio(provider=CrewAIProvider())
 
+def _zoho_token_fingerprint(token):
+    # zoho-fingerprint-v1: safe diagnostic only - sha256 first 8 hex chars + dot-part lengths. Never returns the token itself.
+    t = (token or "").strip()
+    if not t:
+        return {"fp": "", "parts": []}
+    import hashlib
+    return {"fp": hashlib.sha256(t.encode("utf-8")).hexdigest()[:8], "parts": [len(x) for x in t.split(".")]}
+
 def _zoho_direct_configured():
     return bool(ZOHO_CLIENT_ID and ZOHO_CLIENT_SECRET and ZOHO_REFRESH_TOKEN)
 
@@ -988,6 +996,9 @@ def debug():
         "zoho_client_id_len": len(ZOHO_CLIENT_ID),
         "zoho_client_secret_len": len(ZOHO_CLIENT_SECRET),
         "zoho_refresh_token_len": len(ZOHO_REFRESH_TOKEN),
+        "zoho_fingerprint": "zoho-fingerprint-v1",
+        "zoho_refresh_fp": _zoho_token_fingerprint(ZOHO_REFRESH_TOKEN),
+        "zoho_client_fp": _zoho_token_fingerprint(ZOHO_CLIENT_ID),
         "frankenstein_closeout": "whatsapp-drafts+recycle-report-v1",
         "call_center": "call-center-v2,email-gate-8-21ET,stop-line,human-call-list,whatsapp-draft",
         "nextdoor": "kernel-personal-auth,watcher-v2,draft-only",
@@ -1454,6 +1465,7 @@ def zoho_token_helper():
 <p>CRM test: <b>""" + crm_test + """</b></p>
 <p>Render - sjt-concierge - Environment - ZOHO_REFRESH_TOKEN - paste this - Save. Then tell the assistant: render zoho saved.</p>
 <textarea readonly style="width:100%;height:90px">""" + safe + """</textarea>
+<p>Token fingerprint (safe to share, it is NOT the token): <b>""" + _zoho_token_fingerprint(token)["fp"] + """</b> parts=""" + str(_zoho_token_fingerprint(token)["parts"]) + """<br>After you Save in Render and it redeploys, /debug zoho_refresh_fp must match this fingerprint.</p>
 <p><b>Do not paste this in chat, GitHub, or email. Close this page after saving.</b></p></body></html>"""
     return out, 200, headers
 
