@@ -1,0 +1,31 @@
+name: Zoho Direct First Fix Apply - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fix helper anchor in patch script
+        run: python scripts/fix_direct_first_patch.py
+      - name: Apply Zoho direct-first patch
+        run: python scripts/zoho_direct_first_patch.py
+      - name: Compile check
+        run: python -m py_compile concierge.py
+      - name: Commit back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add concierge.py scripts/zoho_direct_first_patch.py scripts/fix_direct_first_patch.py .github/workflows/zoho-direct-first-fix-apply.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit (already patched)."
+          else
+            git commit -m "Zoho direct first: CRM without Composio, Composio as backup"
+            git push origin main
+          fi
