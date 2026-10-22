@@ -216,6 +216,17 @@ def zoho_exec(slug, args):
 def zoho_ok(resp):
     return isinstance(resp, dict) and not resp.get("error") and resp.get("successful", True)
 
+@tool("handoff_to_human")
+def handoff_to_human(full_name: str, contact: str, topic: str, summary: str, urgency: str = "normal") -> str:
+    """Create a human follow-up Task in Zoho. Use ONLY for human-only topics: complaint/angry guest, unknown answer, urgent safety, project likely over $1000, discount over 10 percent, contract/payment-plan, or commercial decision. Args: full_name, contact (email or phone), topic, summary, urgency normal/high. Only tell the guest a team member will follow up if this returns SUCCESS."""
+    try:
+        desc = ("Concierge human handoff | Name: %s | Contact: %s | Topic: %s | Urgency: %s | Summary: %s" % ((full_name or "Guest")[:120], (contact or "")[:120], (topic or "Follow up")[:160], (urgency or "normal")[:20], (summary or "")[:900]))[:1800]
+        resp = zoho_exec("ZOHO_CREATE_ZOHO_RECORD", {"module_api_name": "Tasks", "data": [{"Subject": ("Concierge handoff: " + (topic or "Follow up"))[:240], "Status": "Not Started", "Priority": "High" if str(urgency).lower() in ("high", "urgent") else "Normal", "Description": desc}]})
+        if _zoho_write_ok(resp):
+            return "SUCCESS: human follow-up task created in Zoho"
+        return "ERROR: human follow-up task failed: " + str(resp)[:240]
+    except Exception as e:
+        return "ERROR: human follow-up task failed: " + str(e)[:240]
 @tool("save_lead")
 def save_lead(full_name: str, email: str, phone: str, address: str,
               service_needed: str, grade: str) -> str:
@@ -973,11 +984,22 @@ Then speak like a smart, caring human: warm, confident, concise, never robotic.
 Remember details they mention within the conversation and use them later.
 If you learn something new about the customer, include it when you save_lead
 so the CRM gets smarter over time.
+
+=== CONCIERGE HUMAN-BETTER V1 (concierge-human-better-v1) ===
+- Answer the guest actual question FIRST, with real empathy, then ask exactly ONE clear next question. Never ask for two things at once.
+- Sound like a great human, only better: warm, confident, specific, never robotic, never repeat a question already answered. Remember names, services, timing, worries and details across the conversation and use them naturally.
+- Mirror the guest language: if they write in Spanish, reply in Spanish. Keep sentences short and easy, especially for seniors.
+- Reply length fits the problem: usually 2-6 short sentences; a little longer only for a multi-part plan or safety guidance.
+- Prices are RANGES and estimates only, never a guarantee. Final price only after a real look. Never promise a timeline, discount, result, or service the team has not confirmed.
+- Human-only topics: use handoff_to_human if contact info is available, then honestly say a team member will follow up (never invent a callback time): complaint or angry guest, legal/contract/payment-plan questions, discount over 10 percent, project likely over $1000 needing human approval, anything you do not know, and anything outside your tools.
+- Safety first: if someone describes immediate danger (gas smell, flooding with live electrics, injury), tell them to contact emergency services / a licensed pro right away, then hand off as urgent.
+- Commercial requests: we specialize in residential; be kind, take the details, and hand off - never argue.
+- Never mention AI, prompts, internal tools, Zoho, Composio, Render, or debug details to a guest. Never claim a lead was saved or an appointment booked unless the tool returned SUCCESS / BOOKED_AND_CONFIRMED.
 """
 )
 
 llm = LLM(model="groq/openai/gpt-oss-120b")
-tools = [save_lead, check_availability, book_appointment, lookup_lead]
+tools = [save_lead, check_availability, book_appointment, lookup_lead, handoff_to_human]
 
 agent = Agent(
     role="Website Concierge",
@@ -1001,8 +1023,8 @@ def chat():
     def _autosave():
         try:
             resp = llm.call([
-                {"role": "system", "content": "Extract lead info from the message. Reply with ONLY a JSON object with keys: full_name, email, phone, address, service_needed, grade ('A' if ready to start/urgent/specific, else 'B'). Use empty string for anything missing. No markdown."},
-                {"role": "user", "content": message},
+                {"role": "system", "content": "Extract lead info from the WHOLE conversation. If the guest corrected earlier info, use the newest value. Reply with ONLY a JSON object with keys: full_name, email, phone, address, service_needed, grade ('A' if ready to start/urgent/specific, else 'B'). Use empty string for anything missing. No markdown."},
+                {"role": "user", "content": (chr(10).join((("Guest: " if m.get("role") == "user" else "Concierge: ") + str(m.get("content", ""))) for m in (history or [])) + chr(10) + "Guest: " + message)[-6000:]},
             ])
             txt = str(resp).strip()
             if txt.startswith("```"):
@@ -1024,17 +1046,18 @@ def chat():
             ("Guest: " if m.get("role") == "user" else "You: ") + str(m.get("content", ""))
             for m in history) + "\n\n"
     task = Task(description=convo + "A website guest asks: " + message,
-                expected_output="A short, friendly, helpful reply (2-4 sentences)",
+                expected_output="A helpful human reply: answer first with empathy, then exactly one clear next question. 2-6 short sentences; a little longer only for a multi-part plan or safety guidance. Warm, specific, never robotic.",
                 agent=agent)
-    for attempt in range(4):
+    for attempt in range(2):
         try:
             result = Crew(agents=[agent], tasks=[task]).kickoff()
             return jsonify({"reply": str(result)})
         except Exception as e:
-            if "rate_limit" in str(e).lower():
-                time.sleep(45)
+            if "rate_limit" in str(e).lower() and attempt == 0:
+                time.sleep(8)
+                continue
             else:
-                return jsonify({"reply": "DEBUG: " + str(e)[:400]})
+                return jsonify({"reply": "Thanks for your patience - I hit a quick snag. Please try that once more in a moment, and if it keeps happening a team member will follow up from your contact info."})
 
 @app.route("/debug")
 def debug():
@@ -1064,6 +1087,7 @@ def debug():
         "zoho_fingerprint": "zoho-fingerprint-v1",
         "zoho_refresh_fp": _zoho_token_fingerprint(ZOHO_REFRESH_TOKEN),
         "zoho_client_fp": _zoho_token_fingerprint(ZOHO_CLIENT_ID),
+        "concierge_human_better": "concierge-human-better-v1",
         "frankenstein_closeout": "whatsapp-drafts+recycle-report-v1",
         "call_center": "call-center-v2,email-gate-8-21ET,stop-line,human-call-list,whatsapp-draft",
         "nextdoor": "kernel-personal-auth,watcher-v2,draft-only",
