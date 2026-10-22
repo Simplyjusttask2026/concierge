@@ -38,3 +38,10 @@ Owner instruction in this convo: read FRANKENSTEIN_STATUS.md first, then BRAIN.m
 ## NEXT STEP
 1. On Dell as SJTAgent: open Command Prompt, run `python --version`, report exactly what it says.
 2. Only after Python is known: download/extract agent-laptop in the SJTAgent account, fix stale booking/SOUL parts, then install and do a supervised read-only run_once.
+
+## RESTART / CONTINUE NOTE — OWNER 2026-10-22
+- Owner may have to restart chat under a different login: anthony.savino2024@gmail.com
+- Take note of this so we can continue easily. This is a possible chat/Composio restart login only — no password was given, and never put a password in chat.
+- Owner confirmed after this note: I am on the login of the assistant profile we created. That is Dell Windows user SJTAgent.
+- If a new chat starts under that different login, do NOT start over. First read FRANKENSTEIN_STATUS.md, then BRAIN.md, then BRAIN_UPDATES/2026-10-22-convo-dell-sjt-agent-start.md, then continue at the Python check.
+- Current exact stopping point: Dell signed in as SJTAgent, Command Prompt instructions given, `python --version` result NOT yet reported, install NOT started.
