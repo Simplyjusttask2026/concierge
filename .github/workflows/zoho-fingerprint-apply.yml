@@ -1,0 +1,29 @@
+name: Zoho Fingerprint Apply - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Apply Zoho fingerprint patch
+        run: python scripts/zoho_fingerprint_patch.py
+      - name: Compile check
+        run: python -m py_compile concierge.py
+      - name: Commit back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add concierge.py scripts/zoho_fingerprint_patch.py .github/workflows/zoho-fingerprint-apply.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit (already patched)."
+          else
+            git commit -m "Zoho fingerprint diag: safe token fingerprint in debug and helper"
+            git push origin main
+          fi
