@@ -73,9 +73,18 @@ auth = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 kickoff_id = None
 result_payload = None
+webhook_url = concierge_url + "crewai-task-webhook" + (("?t=" + machine_token) if machine_token else "")
 try:
-    r = requests.post(kickoff_url, headers=auth, json={"inputs": {"target_profile": target}}, timeout=120)
+    kickoff_payload = {"inputs": {"target_profile": target}}
+    if machine_token:
+        kickoff_payload["task_webhook_url"] = webhook_url
+    r = requests.post(kickoff_url, headers=auth, json=kickoff_payload, timeout=120)
     print(f"CrewAI kickoff: {r.status_code}")
+    if r.status_code >= 400 and "task_webhook_url" in kickoff_payload:
+        print("CrewAI kickoff with task webhook rejected - retrying without webhook.")
+        kickoff_payload.pop("task_webhook_url", None)
+        r = requests.post(kickoff_url, headers=auth, json=kickoff_payload, timeout=120)
+        print(f"CrewAI kickoff retry: {r.status_code}")
     print(r.text[:1000])
     if r.status_code >= 400:
         sys.exit(1)
