@@ -1,0 +1,21 @@
+name: Hunt3x Apply - manual only
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python scripts/apply_hunt3x_patch.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scripts/daily_job.py FRANKENSTEIN_STATUS.md
+          git diff --cached --stat
+          git commit -m "Hunt-only 3x: HUNT_ONLY mode in daily_job (11/15/19 ET, no outreach)" || echo "nothing to commit"
+          git push
