@@ -5,7 +5,7 @@ name: SJT Concierge Timers
 
 on:
   schedule:
-    - cron: "0 13 * * *"   # 9:00 AM Eu - daily lead pipeline + Cal sync
+    - cron: "0 13 * * *"   # 9:00 AM ET - daily lead pipeline + Cal sync
     - cron: "0 15 * * *"   # 11:00 AM ET - social media crew
   workflow_dispatch:
 
@@ -20,7 +20,7 @@ jobs:
             -H "x-machine-token: ${{ secrets.MACHINE_TOKEN }}" || true
       - name: Sync Cal bookings to Zoho
         run: |
-          curl -s -m 120 -X POST "${ secrets.CONCIERGE_URL }}/sync-cal-bookings" \
+          curl -s -m 120 -X POST "${{ secrets.CONCIERGE_URL }}/sync-cal-bookings" \
             -H "x-machine-token: ${{ secrets.MACHINE_TOKEN }}" || true
 
   social:
