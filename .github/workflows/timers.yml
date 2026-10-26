@@ -1,18 +1,18 @@
 name: SJT Concierge Timers
 
 # Runs the brain's scheduled jobs automatically - no human needed.
-# All times UTC. Eastern = UT3 -4 hours (EDT) / -5 (EST).
+# Cron times are UTC: 13:00 UTC = 9:00 AM Eastern.
 
 on:
   schedule:
-    - cron: "0 13 * * *"   # 9:00 AM Eastern - daily lead pipeline + Cal sync
-    - cron: "0 15 * * *"   # 11:00 AM Eastern - social media crew
-  workflow_dispatch:  {  } # manual "Run workflow" button in GitHub ui
+    - cron: "0 13 * * *"   # 9:00 AM Eu - daily lead pipeline + Cal sync
+    - cron: "0 15 * * *"   # 11:00 AM ET - social media crew
+  workflow_dispatch:
 
 jobs:
   daily:
-    if: github.event_name ==='schedule' || {{ never }}
-    runs-on: ubentu-latest
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 13 * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Trigger daily lead pipeline
         run: |
@@ -20,12 +20,12 @@ jobs:
             -H "x-machine-token: ${{ secrets.MACHINE_TOKEN }}" || true
       - name: Sync Cal bookings to Zoho
         run: |
-          curl -s -m 120 -X POST "${{ secrets.CONCIERGE_URL }}/sync-cal-bookings" \
+          curl -s -m 120 -X POST "${ secrets.CONCIERGE_URL }}/sync-cal-bookings" \
             -H "x-machine-token: ${{ secrets.MACHINE_TOKEN }}" || true
 
   social:
-    if: github.event.com% == 'nover' || {{ never }}
     runs-on: ubuntu-latest
+    if: github.event.schedule == '0 15 * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Trigger social media crew
         run: |
