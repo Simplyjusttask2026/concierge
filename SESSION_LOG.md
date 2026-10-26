@@ -1,1 +1,31 @@
-IyBTZXNzaW9uIExvZyDigJQgMjAyNi0xMC0wMy8wNCAoQ29tcG9zaW8gY2hhdCB3LyBib3NzKQoKIyMg4pyFIEJ1aWx0ICYgcHJvdmVuIGxpdmUKLSBUdXJxdW9pc2Ugd2lkZ2V0IGxpdmUgb24gU2ltcGx5SnVzdFRhc2suY29tIChwdXJnZSBqc0RlbGl2ciArIGhhcmQgcmVmcmVzaCBhZnRlciBjaGFuZ2VzKQotIFByaWNpbmcgZXN0aW1hdG9yIGxpdmU6IHJhbmdlcyArIGZsZXhpYmxlL25lZ290aWFibGUgcHJvbWlzZSwgYWx3YXlzIHBpdm90cyB0byBmcmVlIGVzdGltYXRlCi0gTGVhZCBjYXB0dXJlIHByb3ZlbiBlbmQtdG8tZW5kIChLZXZpbiBPcnRpeiB0ZXN0IGxhbmRlZCwgdGhlbiBjbGVhbmVkIHVwKQotIEJ1Z3MgZml4ZWQ6IEdyb3EgY2FjaGVfYnJlYWtwb2ludCByZWplY3Rpb247IHJlcGx5IGN1dC1vZmYgKHJldHJ5L3RpbWVvdXQpOyBtb25kYXkgcGhvbmUgY29sdW1uIG5lZWRzIEUuMTY0ICgrMVhYWFhYWFhYWFgpOyBhdXRvLWNhcHR1cmUgYmFja3N0b3Agc28gbm8gbGVhZCBpcyBtaXNzZWQKLSBCb2FyZCBjbGVhbmVkOiBERUJVRyBUZXN0IExlYWQgKyBLZXZpbiBPcnRpeiBkdXBsaWNhdGVzIGRlbGV0ZWQKLSBCcmFpbiBtb3ZlZCBmcm9tIG1vbmRheS5jb20gdG8gWk9ITyBDUk0gKHNhdmVfbGVhZCwgbG9va3VwX2xlYWQsIGhhbmRvZmZfdG9faHVtYW4pCi0gRnJhbmtlbnN0ZWluIFBhcnQgMyB2ZXJpZmllZDogcmVhbC1ib29raW5nLW9ubHkgd2FsbHMsIENhbCByZS1mZXRjaCBwcm9vZiwgWm9obyBMZWFkIOKGkiBBcHBvaW50bWVudCBTZXQgKyBoaWdoLXByaW9yaXR5IFpvaG8gVGFzaywgYmFja3VwIHN3ZWVwZXIKLSBFbGV2ZW5MYWJzIHBob25lLWFnZW50IHN5c3RlbSBwcm9tcHQgZHJhZnRlZCAoaW4gY2hhdCkKCiMjIGJicfk/8J+TRYg3N0aWxsIG5lZWRlZCAob3duZXIpCi0gUmVuZGVyOiBNYW51YWwgRGVwbG95IGxhdGVzdCBjb21taXQgKDkwS0IgYnJhaW4pCi0gUmVuZGVyIGVudjogWk9IT19DTElFTlRfSUQsIFpPSE9fQ0xJRU5UX1NFQ1JFVCwgWk9IT19SRUZSRVNIX1RPS0VOIChkaXJlY3QgQ1JNKQotIFJlbmRlciBlbnY6IE1BQ0hJTkVfVE9LRU4gKHByb3RlY3RzIC9ydW4tZGFpbHksIC9ydW4tc29jaWFsLCAvY2FsbC1jZW50ZXIpCi0gUmVuZGVyIGVudjogQ09NUE9TSU9fVVNFUl9JRD1kZWZhdWx0Ci0gQ2FsLmNvbTogY29uZmlybSBIb21lIFZpc2l0IC8gRXN0aW1hdGUgKGV2ZW50IDc1NTQxNTQpIGV4aXN0cyB3aXRoIGF2YWlsYWJpbGl0eQotIFNlY3VyaXR5OiByZWdlbmVyYXRlIG1vbmRheSB0b2tlbiAod2FzIHBhc3RlZCBpbiBjaGF0OyBsZWdhY3kgbm93IGFueXdheSkK
+# Session Log
+
+## 2026-10-03/04 (Composio chat w/ boss)
+### Built & proven live
+- Turquoise widget live on SimplyJustTask.com (purge jsDelivr + hard refresh after changes)
+- Pricing estimator live: ranges + flexible/negotiable promise, always pivots to free estimate
+- Lead capture proven end-to-end (Kevin Ortiz test landed, then cleaned up)
+- Bugs fixed: Groq cache_breakpoint rejection; reply cut-off (retry/timeout); monday phone column needs E.164 (+1XXXXXXXXXX); auto-capture backstop so no lead is missed
+- Board cleaned: DEBUG Test Lead + Kevin Ortiz duplicates deleted
+- Brain moved from monday.com to ZOHO CRM (save_lead, lookup_lead, handoff_to_human)
+- Frankenstein Part 3 verified: real-booking-only walls, Cal re-fetch proof, Zoho Lead -> Appointment Set + high-priority Zoho Task, backup sweeper
+- ElevenLabs phone-agent system prompt drafted
+
+## 2026-10-26 (Composio chat w/ boss)
+### Verified LIVE on Render (90KB Frankenstein brain deployed)
+- /debug: crm=zoho, zoho_direct configured TRUE, composio zoho connected TRUE, cal both events loaded, call-center-v2, nextdoor watcher-v2 draft-only
+- End-to-end test: Maria Gonzalez deep-clean chat -> quoted $220-380 flexible -> auto-saved to Zoho CRM as Grade A lead (id 7624789000000865002) with full address. PROVEN.
+- /ping alive; /run-daily fires and emails report to tasksupport@simplyjusttask.com
+- /sync-cal-bookings protected by MACHINE_TOKEN (set in Render)
+
+### Built today
+- .github/workflows/timers.yml = FREE automation timers (no Render paid cron needed):
+  - Daily lead pipeline 9:00 AM ET
+  - Social crew 10:00 AM ET Mon/Wed/Fri
+  - Cal bookings sync sweeper (needs MACHINE_TOKEN repo secret)
+  - Keep-alive ping every 10 min so Render free tier NEVER sleeps (system works even when assistant is offline)
+
+### Assistant notes/thoughts (analysis)
+- The new brain is well-architected: threaded auto-capture with full convo history, Zoho-direct-first with Composio fallback, draft-only outreach by default (safe)
+- threading import verified present (silent-failure risk checked, OK)
+- Remaining manual needs: add MACHINE_TOKEN as GitHub repo secret; Twilio<->ElevenLabs phone link for AI answering + transfer; Meta long-lived tokens for real social auto-posting (currently draft-only email reports); Nextdoor has no public posting API (watcher is draft-only by design); TV ads cannot be automated free - AI ad creatives yes, airtime needs budget
