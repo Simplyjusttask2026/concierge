@@ -29,3 +29,12 @@
 - The new brain is well-architected: threaded auto-capture with full convo history, Zoho-direct-first with Composio fallback, draft-only outreach by default (safe)
 - threading import verified present (silent-failure risk checked, OK)
 - Remaining manual needs: add MACHINE_TOKEN as GitHub repo secret; Twilio<->ElevenLabs phone link for AI answering + transfer; Meta long-lived tokens for real social auto-posting (currently draft-only email reports); Nextdoor has no public posting API (watcher is draft-only by design); TV ads cannot be automated free - AI ad creatives yes, airtime needs budget
+
+## 2026-10-26 (evening) - Deploy + full health check
+- Boss completed ALL Render setup: deployed 90KB brain, set ZOHO_CLIENT_ID/SECRET/REFRESH_TOKEN, MACHINE_TOKEN (own password), COMPOSIO_USER_ID=default
+- /debug: ALL green - crm=zoho, direct configured, bridge connected, cal events loaded
+- E2E test: "Test Lead" (testlead@example.com, +13055550123, 123 Ocean Drive Miami) saved to Zoho CRM id 7624789000000867003, source Chat. PROVEN even when agent replied "snag" - auto-capture backstop caught it.
+- KNOWN: zoho-direct token exchange returns invalid_code (refresh token value may be the one-time grant code instead of refresh token) - bridge covers everything, so not urgent
+- KNOWN: chat session memory does not persist across separate /api/chat calls (per-request state) - auto-capture compensates
+- Boss asked about: foolproof timers (keep-alive ping + cron), AI phone answering (Twilio done, Zoho Voice numbers available, ElevenLabs prompt ready), social auto-posting + image gen, Nextdoor (no public API - manual), lead generation pipelines, TV ads (needs human production + budget)
+- TODO cleanup: delete Test Lead from Zoho CRM when boss confirms
