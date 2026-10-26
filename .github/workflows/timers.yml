@@ -13,11 +13,11 @@ jobs:
     steps:
       - name: Daily lead pipeline (drafts + email report)
         if: github.event.schedule == '0 13 * * *' || github.event_name == 'workflow_dispatch'
-        run: curl -fsS -m 160 -X POST https://sjt-concierge.onrender.com/run-daily || true
+        run: curl -fsS -m 160 -X POST "https://sjt-concierge.onrender.com/run-daily?token=${{ secrets.MACHINE_TOKEN }}" || true
 
       - name: Social crew
         if: github.event.schedule == '0 14 * * 1,3,5'
-        run: curl -fsS -m 160 -X POST https://sjt-concierge.onrender.com/run-social || true
+        run: curl -fsS -m 160 -X POST "https://sjt-concierge.onrender.com/run-social?token=${{ secrets.MACHINE_TOKEN }}" || true
 
       - name: Cal bookings sync sweeper
         if: github.event.schedule != '*/10 * * * *'
