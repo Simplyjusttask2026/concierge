@@ -3,7 +3,7 @@ name: SJT Automation Timers
 on:
   schedule:
     - cron: '0 13 * * *'      # Daily lead pipeline 9:00 AM ET (13:00 UTC)
-    - cron: '0 14 * * 1,3,5'  # Social crew 10:00 AM ET Mon/Wed/Fri (14:00 UTC)
+    - cron: '0 14 * * *'      # Social crew DAILY 10:00 AM ET - social-auto-v1: 1 service/day, AI image, FB+IG post
     - cron: '*/10 * * * *'    # Keep-alive ping every 10 min so Render free instance never sleeps
   workflow_dispatch: {}       # manual trigger button in GitHub Actions tab
 
@@ -16,7 +16,7 @@ jobs:
         run: curl -fsS -m 160 -X POST "https://sjt-concierge.onrender.com/run-daily?token=${{ secrets.MACHINE_TOKEN }}" || true
 
       - name: Social crew
-        if: github.event.schedule == '0 14 * * 1,3,5'
+        if: github.event.schedule == '0 14 * * *' || github.event_name == 'workflow_dispatch'
         run: curl -fsS -m 160 -X POST "https://sjt-concierge.onrender.com/run-social?token=${{ secrets.MACHINE_TOKEN }}" || true
 
       - name: Cal bookings sync sweeper
