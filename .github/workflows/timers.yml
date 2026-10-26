@@ -1,1 +1,30 @@
-bmFtZTogU0pUIEF1dG9tYXRpb24gVGltZXJzCgpvbi6cblxuICBzY2hlZHVsZTo6XG4gICAgLSBjcm9uOiAnMCAxMyAqICogKicgICAgIyBEYWlseSBsZWFkIHBpcGVsaW5lID06MDAgQU0gRVQgKD EzOjAwIFVUQylcbiAgICAtIGNyb246ICcwIDE0ICogKiAxLDMsNScgICMgU29jaWFsIGNyZXcgMTA6MDAgQU0gRVQgTW9uL1dlZC9GcmkgKDE0OjAwIFVUQylcbiAgICAtIGNyb246ICcqLzEwICogKiAqICoiICAjIEtlZXAtYWxpdmUgcGluZyBldmVyeSAxMCBtaW4gc28gUmVuZGVyIGZyZWUgaW5zdGFuY2UgbmV2ZXIgc2xlZXBzXG4gIHdvcmtmbG93X2Rpc3BhdGNoOiB7fSAjIG1hbnVhbCB0cmlnZ2VyIGJ1dHRvblxuXG5qb2JzOlxuICB0aW1lcnM6XG4gICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdFxuICAgIHN0ZXBzOlxuICAgICAgLSBuYW1lOiBEYWlseSBsZWFkIHBpcGVsaW5lIChkcwfKmWyBvbmx5ICsgZW1haWwgcmVwb3J0KVxuICAgICAgICBpZjogZ2l0aHViLmV2ZW50LnNjaGVkdWxlID09ICcwIDEzICogKiAqJyB8fCBnaXRodWIuZXZlbnRfbmFtZSA9PSAnd29ya2Zsb3dfZGlzcGF0Y2gnXG4gICAgICAgIHJ1bjogY3VybCAtZnNTIC1tIDE2MCAtWCBQT1NUIGh0dHBzOi8vc2p0LWNvbmNpZXJnZS5vbnJlbmRlci5jb20vcnVuLWRhaWx5IHx8IHRydWVcblxuICAgICAgLSBuYW1lOiBTb2NpYWwgY3Jld1xuICAgICAgICBpZjogZ2l0aHViLmV2ZW50LnNjaGVkdWxlID09ICcwIDE0ICogKiAxLDMsNSdcbiAgICAgICAgcnVuOiBjdXJsIC1mc1MgLW0gMTYwIC1YIFBPU1QgaHR0cHM6Ly9zanQtY29uY2llcmdlLm9ucmVuZGVyLmNvbS9ydW4tc29jaWFsIHx8IHRydWVcblxuICAgICAgLSBuYW1lOiBDYWwgYm9va2luZ3Mgc3luYyBzd2VlcGVyXG4gICAgICAgIGlmOiBnaXRodWIuZXZlbnQuc2NoZWR1bGUgIT0gJyovMTAgKiAqICogKidcbiAgICAgICAgcnVuOiB8XG4gICAgICAgICAgY3VybCAtZnNTIC1tIDE2MCAtWCBQT1NUIGh0dHBzOi8vc2p0LWNvbmNpZXJnZS5vbnJlbmRlci5jb20vc3luYy1jYWwtYm9va2luZ3MgXA5cbiAgICAgICAgICAgIC1IICJ4LW1hY2hpbmUtdG9rZW46ICR7eyBzZWNyZXRzLk1BQ0hJTkVfVE9LRU4gfX0iIHx8IHRydWVcblxuICAgICAgLSBuYW1lOiBLZWVwLWFsaXZlIHBpbmdcbiAgICAgICAgaWY6IGFsd2F5cygpXG4gICAgICAgIHJ1bjogY3VybCAtZnNTIC1tIDMwIGh0dHBzOi8vc2p0LWNvbmNpZXJnZS5vbnJlbmRlci5jb20vcGluZyB8fCB0cnVlCg==
+name: SJT Automation Timers
+
+on:
+  schedule:
+    - cron: '0 13 * * *'      # Daily lead pipeline 9:00 AM ET (13:00 UTC)
+    - cron: '0 14 * * 1,3,5'  # Social crew 10:00 AM ET Mon/Wed/Fri (14:00 UTC)
+    - cron: '*/10 * * * *'    # Keep-alive ping every 10 min so Render free instance never sleeps
+  workflow_dispatch: {}       # manual trigger button in GitHub Actions tab
+
+jobs:
+  timers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Daily lead pipeline (drafts + email report)
+        if: github.event.schedule == '0 13 * * *' || github.event_name == 'workflow_dispatch'
+        run: curl -fsS -m 160 -X POST https://sjt-concierge.onrender.com/run-daily || true
+
+      - name: Social crew
+        if: github.event.schedule == '0 14 * * 1,3,5'
+        run: curl -fsS -m 160 -X POST https://sjt-concierge.onrender.com/run-social || true
+
+      - name: Cal bookings sync sweeper
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -fsS -m 160 -X POST https://sjt-concierge.onrender.com/sync-cal-bookings \
+            -H "x-machine-token: ${{ secrets.MACHINE_TOKEN }}" || true
+
+      - name: Keep-alive ping
+        if: always()
+        run: curl -fsS -m 30 https://sjt-concierge.onrender.com/ping || true
