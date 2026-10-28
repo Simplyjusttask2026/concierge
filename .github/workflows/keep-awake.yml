@@ -1,19 +1,11 @@
-name: Keep Render Awake
-
+name: Legacy keep-awake - manual health check only
 on:
-  schedule:
-    # Every 10 minutes (GitHub Actions free tier; may be delayed under load)
-    - cron: "*/10 * * * *"
-  workflow_dispatch:
-
+  workflow_dispatch: {}
 permissions:
   contents: read
-
 jobs:
-  ping:
+  health:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
-      - name: Ping concierge
-        run: |
-          curl -fsS --max-time 60 https://sjt-concierge.onrender.com/ping || echo "ping failed (Render may be waking)"
+      - name: Health only - not posting or pipeline proof
+        run: curl -fSs --max-time 60 https://sjt-concierge.onrender.com/ping

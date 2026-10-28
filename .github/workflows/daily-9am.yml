@@ -1,37 +1,10 @@
-name: Simply Just Task - Daily 9AM
-
+name: Legacy Daily 9AM - retired on repair branch
 on:
-  schedule:
-    # GitHub cron is UTC only. Run at both 13:00 and 14:00 UTC;
-    # the script only proceeds at 09:00 America/New_York (handles DST).
-    - cron: "0 13 * * *"
-    - cron: "0 14 * * *"
-  workflow_dispatch:
-    inputs:
-      force:
-        description: "Run even if it is not 9AM New York (manual test - this WILL trigger Render /run-daily + /run-social)"
-        required: false
-        default: "false"
-
+  workflow_dispatch: {}
 permissions:
   contents: read
-
 jobs:
-  daily:
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install requests
-      - name: Run 9AM job
-        env:
-          CREWAI_BEARER_TOKEN: ${{ secrets.CREWAI_BEARER_TOKEN }}
-          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
-          CREWAI_KICKOFF_URL: "https://simply-just-task-lead-automation-v1-d581327-df40e8a1.crewai.com/kickoff"
-          TARGET_PROFILE: "Local residential homeowners in Central Florida (Apopka area) who need home services, concierge and lifestyle support for Simply Just Task. Find, verify, score and qualify them. Free only, no paid outreach."
-          CONCIERGE_URL: "https://sjt-concierge.onrender.com/"
-          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.force == 'true' && '1' || '0' }}
-        run: python scripts/daily_job.py
+      - run: echo 'Retired duplicate clock. Use SJT Operations after approved activation. No live job started.'

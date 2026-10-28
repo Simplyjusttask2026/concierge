@@ -1,0 +1,33 @@
+name: SJT Operations - tracked owner-activated jobs
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: 'Health only by default. all requires separately authorized server activation.'
+        type: choice
+        options: ['health','all']
+        default: 'health'
+permissions:
+  contents: read
+concurrency:
+  group: sjt-operations
+  cancel-in-progress: false
+jobs:
+  operations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Observe completion - never count a 202 as delivered outreach
+        env:
+          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
+          SJT_AUTOMATION_ENABLED: ${{ vars.SJT_AUTOMATION_ENABLED }}
+          CONCIERGE_URL: https://sjt-concierge.onrender.com
+          KIND: ${{ github.event_name == 'workflow_dispatch' && inputs.kind || 'all' }}
+        run: python scripts/operations_runner.py --kind "$KIND"

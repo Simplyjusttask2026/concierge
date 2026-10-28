@@ -1,0 +1,51 @@
+name: Frankenstein repair - isolated offline build
+on:
+  push:
+    branches: ['fix/frankenstein-reliability-20261028-a6d401']
+    paths: ['.github/workflows/frankenstein-repair-build.yml']
+permissions:
+  contents: write
+jobs:
+  offline-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/frankenstein-reliability-20261028-a6d401
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch and verify approved repair files
+        run: |
+          set -euo pipefail
+          curl -fLsS --max-time 60 'https://backend.composio.dev/api/v3/sl/PRsDYXYnwn' -o /tmp/sjt-repair.json
+          echo '58a7e5b16a84c7eeeedb854e270ce073b6116e1e28a0c6bdcd6d17fb999400aa  /tmp/sjt-repair.json' | sha256sum -c -
+          python - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          bundle=json.loads(Path('/tmp/sjt-repair.json').read_text())
+          allowed={'concierge.py','reliability.py','widget.js','scripts/daily_job.py','scripts/operations_runner.py','tests/test_reliability.py','tests/test_pipeline_integration.py','REPAIR_STATUS.md'}
+          assert set(bundle['files'])==allowed
+          for path, expected in bundle['expected_before'].items():
+              actual=subprocess.check_output(['git','hash-object',path],text=True).strip()
+              assert actual==expected, 'Base file changed: '+path
+          for path, content in bundle['files'].items():
+              target=Path(path)
+              target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_text(content)
+          PY
+      - name: Offline regression tests - NO account calls
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -v
+          node --check widget.js
+      - name: Save tested code on repair branch only
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = 'fix/frankenstein-reliability-20261028-a6d401'
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add concierge.py reliability.py widget.js scripts/daily_job.py scripts/operations_runner.py tests/test_reliability.py tests/test_pipeline_integration.py REPAIR_STATUS.md
+          git commit -m 'Repair backlog selection, secure jobs, exact-action delivery, history, quota and booking pagination'
+          git push origin HEAD:fix/frankenstein-reliability-20261028-a6d401

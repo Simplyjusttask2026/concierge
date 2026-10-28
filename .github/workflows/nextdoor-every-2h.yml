@@ -1,22 +1,15 @@
-name: Nextdoor Every 2 Hours - draft check
+name: Nextdoor SELF-TEST ONLY - NOT a live hunt
 on:
-  schedule:
-    - cron: '15 */2 * * *'
   workflow_dispatch: {}
 permissions:
   contents: read
 jobs:
-  nextdoor-check:
+  selftest-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - run: python scripts/nextdoor_watcher.py --selftest
-      - name: Summary
-        run: |
-          echo '## Nextdoor draft check' >> $GITHUB_STEP_SUMMARY
-          echo 'Watcher self-test passed. Sends made: 0 (draft-only).' >> $GITHUB_STEP_SUMMARY
-          echo 'Live hunt = Kernel profile nextdoor-anthony-personal in chat/agent, every 2h 7am-10pm ET, owner go per comment.' >> $GITHUB_STEP_SUMMARY
+      - run: echo 'No Nextdoor login, scan, post, comment or DM occurred. Live Dell setup remains required.'
