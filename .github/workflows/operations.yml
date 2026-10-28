@@ -1,0 +1,27 @@
+name: SJT unified operations - owner activation required
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: sjt-owner-operations
+  cancel-in-progress: false
+jobs:
+  prepare-and-report:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Track completed preparation jobs - never infer delivery
+        env:
+          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
+          SJT_AUTOMATION_ENABLED: ${{ vars.SJT_AUTOMATION_ENABLED }}
+          CONCIERGE_URL: https://sjt-concierge.onrender.com
+        run: python scripts/operations_runner.py

@@ -1,30 +1,10 @@
-name: SJT Automation Timers
-
+name: Legacy automation timers - retired in repair branch
 on:
-  schedule:
-    - cron: '0 13 * * *'      # Daily lead pipeline 9:00 AM ET (13:00 UTC)
-    - cron: '0 14 * * *'      # Social crew DAILY 10:00 AM ET - social-auto-v1: 1 service/day, AI image, FB+IG post
-    - cron: '*/10 * * * *'    # Keep-alive ping every 10 min so Render free instance never sleeps
-  workflow_dispatch: {}       # manual trigger button in GitHub Actions tab
-
+  workflow_dispatch: {}
+permissions:
+  contents: read
 jobs:
-  timers:
+  retired:
     runs-on: ubuntu-latest
     steps:
-      - name: Daily lead pipeline (drafts + email report)
-        if: github.event.schedule == '0 13 * * *' || github.event_name == 'workflow_dispatch'
-        run: curl -fsS -m 160 -X POST "https://sjt-concierge.onrender.com/run-daily?token=${{ secrets.MACHINE_TOKEN }}" || true
-
-      - name: Social crew
-        if: github.event.schedule == '0 14 * * *' || github.event_name == 'workflow_dispatch'
-        run: curl -fsS -m 160 -X POST "https://sjt-concierge.onrender.com/run-social?token=${{ secrets.MACHINE_TOKEN }}" || true
-
-      - name: Cal bookings sync sweeper
-        if: github.event.schedule != '*/10 * * * *'
-        run: |
-          curl -fsS -m 160 -X POST https://sjt-concierge.onrender.com/sync-cal-bookings \
-            -H "x-machine-token: ${{ secrets.MACHINE_TOKEN }}" || true
-
-      - name: Keep-alive ping
-        if: always()
-        run: curl -fsS -m 30 https://sjt-concierge.onrender.com/ping || true
+      - run: echo 'Duplicate error-hiding triggers retired. No account operations or posts triggered.'

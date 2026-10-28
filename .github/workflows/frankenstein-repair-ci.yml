@@ -1,0 +1,58 @@
+name: Frankenstein repair - offline tests only
+on:
+  push:
+    branches: [fix/frankenstein-reliability-20261028]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: frankenstein-repair-branch
+  cancel-in-progress: false
+jobs:
+  repair-and-test:
+    if: github.ref == 'refs/heads/fix/frankenstein-reliability-20261028'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply hash-verified tested bundle to this branch only
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib,subprocess,urllib.request
+          raw=urllib.request.urlopen('https://backend.composio.dev/api/v3/sl/qt0OtZf02n',timeout=60).read()
+          assert hashlib.sha256(raw).hexdigest()=='6efec99392bfcc75344653f02ca0d0f3f2309e4c1eb8eaef721aece3b8ad145e','Bundle checksum mismatch'
+          bundle=json.loads(raw)
+          subprocess.run(['git','merge-base','--is-ancestor',bundle['base_commit'],'HEAD'],check=True)
+          allowed={'concierge.py','reliability.py','widget.js','scripts/daily_job.py','scripts/operations_runner.py','tests/test_reliability.py','tests/test_pipeline_integration.py','REPAIR_STATUS.md','.gitignore'}
+          assert set(bundle['files'])==allowed
+          for name,content in bundle['files'].items():
+              p=pathlib.Path(name)
+              if p.exists() and p.read_text()==content: continue
+              expected=bundle['preimage_git_blobs'].get(name)
+              if expected:
+                  actual=subprocess.check_output(['git','hash-object',name],text=True).strip()
+                  assert actual==expected,'Source changed: '+name
+              else:
+                  assert not p.exists(),'Refuse to overwrite an unreviewed file: '+name
+              p.parent.mkdir(parents=True,exist_ok=True)
+              p.write_text(content)
+          print('Verified repair bundle applied; no account connections or production actions invoked.')
+          PY
+      - name: Offline tests with temporary state and mocked transports
+        run: python -m unittest discover -s tests -v
+      - name: JavaScript syntax
+        run: node --check widget.js
+      - name: Save tested application repairs on repair branch only
+        run: |
+          test "${GITHUB_REF}" = 'refs/heads/fix/frankenstein-reliability-20261028'
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add concierge.py reliability.py widget.js scripts/daily_job.py scripts/operations_runner.py tests/test_reliability.py tests/test_pipeline_integration.py REPAIR_STATUS.md .gitignore
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Fix Frankenstein backlog, queues, approvals, tracking, security, history and booking pagination'
+          git push origin HEAD:fix/frankenstein-reliability-20261028

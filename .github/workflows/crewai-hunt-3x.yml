@@ -1,36 +1,10 @@
-name: CrewAI Hunt - Daily
-
+name: CrewAI hunt - paused after monthly allowance exhausted
 on:
-  schedule:
-    - cron: "0 15 * * *"   # 11 AM ET (EST)
-    - cron: "0 16 * * *"   # 11 AM ET (EDT) - guard script runs only one
-  workflow_dispatch:
-    inputs:
-      force_hunt:
-        description: "Run hunt + Zoho ingest now even if not 11 AM ET (hunt only - NO outreach)"
-        required: false
-        default: "false"
-
+  workflow_dispatch: {}
 permissions:
   contents: read
-
 jobs:
-  hunt:
+  paused:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install requests
-      - name: Run hunt-only job (CrewAI -> Zoho ingest, no outreach)
-        env:
-          CREWAI_BEARER_TOKEN: ${{ secrets.CREWAI_BEARER_TOKEN }}
-          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
-          CREWAI_KICKOFF_URL: "https://simply-just-task-lead-automation-v1-d581327-df40e8a1.crewai.com/kickoff"
-          TARGET_PROFILE: "Local residential homeowners in Central Florida (Apopka area) who need home services, concierge and lifestyle support for Simply Just Task. Find, verify, score and qualify them. Free only, no paid outreach."
-          CONCIERGE_URL: "https://sjt-concierge.onrender.com/"
-          HUNT_ONLY: "1"
-          FORCE_HUNT: ${{ github.event_name == 'workflow_dispatch' && inputs.force_hunt == 'true' && '1' || '0' }}
-        run: python scripts/daily_job.py
+      - run: echo 'CrewAI monthly execution allowance reached. No kickoff, retry, purchase or upgrade. Reassess free allowance separately.'
