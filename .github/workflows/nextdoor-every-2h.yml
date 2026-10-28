@@ -1,10 +1,10 @@
-name: Nextdoor offline self-test - NOT a live hunt
+name: Nextdoor logic tests - NOT a live hunt
 on:
   workflow_dispatch: {}
 permissions:
   contents: read
 jobs:
-  offline-selftest:
+  logic_test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -12,4 +12,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: python scripts/nextdoor_watcher.py --selftest
-      - run: echo 'Offline watcher logic only. No live Nextdoor scan, post, comment or DM. Dell validation remains required.'
+      - run: echo 'Logic test only. No live feed read, job hunt, message or post. Live monitoring needs a validated Dell session.' >> "$GITHUB_STEP_SUMMARY"

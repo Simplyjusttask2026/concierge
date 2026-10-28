@@ -1,10 +1,29 @@
-name: Legacy Daily 9AM - retired in repair branch
+name: SJT Operations - catch-up and verified outcomes
 on:
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch: {}
 permissions:
   contents: read
+concurrency:
+  group: sjt-operations-live
+  cancel-in-progress: false
 jobs:
-  retired:
+  operations:
+    if: vars.SJT_REPAIRS_ACTIVATED == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - run: echo 'Retired duplicate schedule. Use owner-activated unified operations; no jobs triggered.'
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install requests
+      - name: Poll actual completion, not only HTTP accepted
+        env:
+          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
+          CONCIERGE_URL: https://sjt-concierge.onrender.com
+        run: python scripts/daily_job.py --kind all
+      - name: Job outcome notice
+        if: always()
+        run: echo 'Read owner-authenticated server job outcomes. Health/HTTP accepted is not proof of posting or delivery.' >> "$GITHUB_STEP_SUMMARY"

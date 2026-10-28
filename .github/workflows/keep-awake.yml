@@ -1,19 +1,16 @@
-name: Keep Render Awake
-
+name: Render health check - failures are visible
 on:
   schedule:
-    # Every 10 minutes (GitHub Actions free tier; may be delayed under load)
-    - cron: "*/10 * * * *"
-  workflow_dispatch:
-
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
 permissions:
   contents: read
-
 jobs:
   ping:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Ping concierge
+      - name: Check HTTP health without hiding failure
         run: |
-          curl -fsS --max-time 60 https://sjt-concierge.onrender.com/ping || echo "ping failed (Render may be waking)"
+          curl --fail --silent --show-error --max-time 60 https://sjt-concierge.onrender.com/ping
+          echo 'Health only; cron timing and free-host uptime are not guaranteed.' >> "$GITHUB_STEP_SUMMARY"

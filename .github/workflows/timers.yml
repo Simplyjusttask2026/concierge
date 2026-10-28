@@ -1,10 +1,13 @@
-name: Legacy automation timers - retired in repair branch
+name: SJT legacy timer - health only, no duplicate pipelines
 on:
   workflow_dispatch: {}
 permissions:
   contents: read
 jobs:
-  retired:
+  health:
     runs-on: ubuntu-latest
     steps:
-      - run: echo 'Duplicate error-hiding triggers retired. No account operations or posts triggered.'
+      - name: Health only - never sends or starts a job
+        run: |
+          curl --fail --silent --show-error --max-time 60 https://sjt-concierge.onrender.com/ping
+          echo 'Health only. Operational schedule is daily-9am.yml after explicit activation.' >> "$GITHUB_STEP_SUMMARY"

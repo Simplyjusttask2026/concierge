@@ -1,10 +1,13 @@
-name: CrewAI hunt - paused after monthly allowance exhausted
+name: CrewAI hunt PAUSED - monthly free allowance exhausted
 on:
   workflow_dispatch: {}
 permissions:
   contents: read
 jobs:
-  paused:
+  quota_notice:
     runs-on: ubuntu-latest
     steps:
-      - run: echo 'CrewAI monthly execution allowance reached. No kickoff, retry, purchase or upgrade. Reassess free allowance separately.'
+      - name: Stop without consuming executions or upgrading
+        run: |
+          echo '::error::CrewAI reached its monthly execution limit. No retry, extra account, quota bypass or paid upgrade. Reassess available free allowance separately.'
+          exit 1
