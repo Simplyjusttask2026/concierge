@@ -1,0 +1,55 @@
+name: Frankenstein tested repair - isolated offline CI
+on:
+  push:
+    branches: [fix/frankenstein-tested-a6d401]
+permissions:
+  contents: write
+concurrency:
+  group: frankenstein-tested-a6d401
+  cancel-in-progress: false
+jobs:
+  repair-and-test:
+    if: github.ref == 'refs/heads/fix/frankenstein-tested-a6d401'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply pinned repair files on this branch only
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib,subprocess,urllib.request
+          raw=urllib.request.urlopen('https://backend.composio.dev/api/v3/sl/qt0OtZf02n',timeout=60).read()
+          assert hashlib.sha256(raw).hexdigest()=='6efec99392bfcc75344653f02ca0d0f3f2309e4c1eb8eaef721aece3b8ad145e'
+          b=json.loads(raw)
+          subprocess.run(['git','merge-base','--is-ancestor',b['base_commit'],'HEAD'],check=True)
+          allowed={'concierge.py','reliability.py','widget.js','scripts/daily_job.py','scripts/operations_runner.py','tests/test_reliability.py','tests/test_pipeline_integration.py','REPAIR_STATUS.md','.gitignore'}
+          assert set(b['files'])==allowed
+          for name,content in b['files'].items():
+              p=pathlib.Path(name)
+              if p.exists() and p.read_text()==content: continue
+              expected=b['preimage_git_blobs'].get(name)
+              if expected:
+                  assert subprocess.check_output(['git','hash-object',name],text=True).strip()==expected,'Concurrent source change: '+name
+              else:
+                  assert not p.exists(),'Unreviewed existing file: '+name
+              p.parent.mkdir(parents=True,exist_ok=True)
+              p.write_text(content)
+          PY
+      - name: Offline integration and unit tests - no live services
+        run: python -m unittest discover -s tests -v
+      - name: JavaScript syntax
+        run: node --check widget.js
+      - name: Commit verified repairs on isolated branch
+        run: |
+          test "$GITHUB_REF" = 'refs/heads/fix/frankenstein-tested-a6d401'
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add concierge.py reliability.py widget.js scripts/daily_job.py scripts/operations_runner.py tests/test_reliability.py tests/test_pipeline_integration.py REPAIR_STATUS.md .gitignore
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Repair backlog eligibility, owner-confirmed sends, quotas, history, booking sync and job tracking'
+          git push origin HEAD:fix/frankenstein-tested-a6d401
