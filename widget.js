@@ -42,6 +42,8 @@
   var msgs = panel.querySelector("#sjt-msgs");
   var input = panel.querySelector("#sjt-input");
   var opened = false;
+  var history = [];
+  var sending = false;
 
   function addMsg(text, cls) {
     var d = document.createElement("div");
@@ -64,17 +66,22 @@
   panel.querySelector("#sjt-form").onsubmit = function (e) {
     e.preventDefault();
     var text = input.value.trim();
-    if (!text) return;
+    if (!text || sending) return;
+    sending = true;
+    var prior = history.slice(-12);
+    history.push({role: "user", content: text});
+    panel.querySelector("#sjt-send").disabled = true;
     input.value = "";
     addMsg(text, "sjt-user");
     var typing = addMsg("typing...", "sjt-bot sjt-typing");
     fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text, history: prior })
     })
-      .then(function (r) { return r.json(); })
-      .then(function (d) { typing.textContent = d.reply || "..."; typing.classList.remove("sjt-typing"); })
-      .catch(function () { typing.textContent = "Hmm, connection trouble. Try again?"; typing.classList.remove("sjt-typing"); });
+      .then(function (r) { if (!r.ok) throw new Error("Chat request failed"); return r.json(); })
+      .then(function (d) { if (typeof d.reply !== "string") throw new Error("Invalid reply"); typing.textContent = d.reply; history.push({role:"assistant", content:d.reply}); history = history.slice(-12); typing.classList.remove("sjt-typing"); })
+      .catch(function () { history.pop(); typing.textContent = "Connection trouble—your message was not confirmed. Please try again."; typing.classList.remove("sjt-typing"); })
+      .then(function () { sending = false; panel.querySelector("#sjt-send").disabled = false; });
   };
 })();

@@ -28,6 +28,9 @@ GitHub also emails the repo owner on workflow failure by default.
 import os, sys, json, time, datetime, re
 from zoneinfo import ZoneInfo
 import requests
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from reliability import quota_exhausted
 
 NY = ZoneInfo("America/New_York")
 now_ny = datetime.datetime.now(NY)
@@ -40,7 +43,7 @@ if hunt_only:
     if not (force or force_hunt) and now_ny.hour not in (11, 15, 19):
         print("HUNT_ONLY: Not 11AM/3PM/7PM New York - skipping (DST guard).")
         sys.exit(0)
-elif not force and now_ny.hour != 9:
+elif not force and not (9 <= now_ny.hour < 21):
     print("Not 9AM New York - skipping (DST guard).")
     sys.exit(0)
 
@@ -80,6 +83,9 @@ try:
         kickoff_payload["task_webhook_url"] = webhook_url
     r = requests.post(kickoff_url, headers=auth, json=kickoff_payload, timeout=120)
     print(f"CrewAI kickoff: {r.status_code}")
+    if quota_exhausted(r.status_code, r.text):
+        print("BLOCKED: CrewAI allowance exhausted; no retry, upgrade or downstream send.")
+        sys.exit(1)
     if r.status_code >= 400 and "task_webhook_url" in kickoff_payload:
         print("CrewAI kickoff with task webhook rejected - retrying without webhook.")
         kickoff_payload.pop("task_webhook_url", None)
@@ -184,12 +190,12 @@ if hunt_only:
 
 for path in ("/run-daily", "/run-social"):
     try:
-        r = requests.get(concierge_url.rstrip("/") + path, timeout=60)
+        r = requests.post(concierge_url.rstrip("/") + path, headers=machine_headers, timeout=60)
         print(f"Render {path}: {r.status_code} {r.text[:300]}")
         if r.status_code >= 400:
-            print(f"WARNING: {path} returned {r.status_code} - check Render logs")
+            raise RuntimeError(f"{path} returned HTTP {r.status_code}")
     except Exception as e:
-        print(f"Render {path} failed (continuing): {e}")
+        raise RuntimeError(f"Render {path} failed") from e
 
 print("Daily 9AM job finished. Next: check Actions log, CrewAI execution, Zoho for new leads, and Zoho Mail for SJT reports.")
 print("Note: Nextdoor is NOT automated here - no API. Kernel browser checks only, supervised, per SOPS/NEXTDOOR_KERNEL.md.")
