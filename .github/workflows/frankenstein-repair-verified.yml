@@ -1,5 +1,8 @@
 name: Frankenstein verified repair - branch only
 on:
+  push:
+    branches: [fix/frankenstein-reliability-20261028]
+    paths: [.github/workflows/frankenstein-repair-verified.yml]
   workflow_dispatch: {}
 permissions:
   contents: write
@@ -18,40 +21,39 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Download hash-pinned reviewed patch bundle
+      - name: Download reviewed hash-pinned bundle
         run: |
           curl --fail --silent --show-error --location --max-time 60 'https://backend.composio.dev/api/v3/sl/wvln7x4pVl' -o /tmp/repair.zip
           echo 'e8ff3d282c6ea2b376c4621a81fbd927f5ed269ae3240f97bd76145b5128138a  /tmp/repair.zip' | sha256sum --check
-      - name: Validate exact file allowlist and production base
+      - name: Apply exact allowlisted code on repair branch
         run: |
           python - <<'PY'
-          import hashlib, pathlib, subprocess, zipfile
+          import pathlib, subprocess, zipfile
           assert subprocess.check_output(['git','branch','--show-current'],text=True).strip() == 'fix/frankenstein-reliability-20261028'
-          assert subprocess.check_output(['git','hash-object','concierge.py'],text=True).strip() == '7f6df7bd92313996eff75d8abb69e2a8dcada0c7', 'Base code changed; review before applying'
-          allowed = {'concierge.py','widget.js','sjt_reliability.py','sjt_web_jobs.py','reliability.py','scripts/daily_job.py','scripts/operations_runner.py','tests/test_repairs.py','tests/test_reliability.py','REPAIR_STATUS.md','TEST_RESULTS.txt'}
-          with zipfile.ZipFile('/tmp/repair.zip') as bundle:
-              assert set(bundle.namelist()) == allowed
-              assert len(bundle.namelist()) == len(allowed)
-              assert sum(x.file_size for x in bundle.infolist()) < 2000000
-              for name in sorted(allowed):
-                  data = bundle.read(name)
+          assert subprocess.check_output(['git','hash-object','concierge.py'],text=True).strip() == '7f6df7bd92313996eff75d8abb69e2a8dcada0c7', 'Base changed; review required'
+          allowed={'concierge.py','widget.js','sjt_reliability.py','sjt_web_jobs.py','reliability.py','scripts/daily_job.py','scripts/operations_runner.py','tests/test_repairs.py','tests/test_reliability.py','REPAIR_STATUS.md','TEST_RESULTS.txt'}
+          with zipfile.ZipFile('/tmp/repair.zip') as z:
+              assert set(z.namelist()) == allowed and len(z.namelist()) == len(allowed)
+              assert sum(x.file_size for x in z.infolist()) < 2000000
+              for name in allowed:
+                  data=z.read(name)
                   data.decode('utf-8')
-                  target = pathlib.Path(name)
-                  target.parent.mkdir(parents=True,exist_ok=True)
-                  target.write_bytes(data)
+                  p=pathlib.Path(name)
+                  p.parent.mkdir(parents=True,exist_ok=True)
+                  p.write_bytes(data)
           PY
       - name: Install offline test dependencies only
         run: python -m pip install requests flask
-      - name: Run tests with mocked transports - no live accounts
+      - name: Test without live accounts
         run: |
           python -m unittest discover -s tests -v
           python - <<'PY'
-          import ast, pathlib
+          import ast,pathlib
           for p in ('concierge.py','reliability.py','sjt_reliability.py','sjt_web_jobs.py','scripts/daily_job.py','scripts/operations_runner.py'):
               ast.parse(pathlib.Path(p).read_text())
           PY
           node --check widget.js
-      - name: Commit reviewed code to repair branch only
+      - name: Commit code only to repair branch
         run: |
           test "$(git branch --show-current)" = 'fix/frankenstein-reliability-20261028'
           git config user.name 'github-actions[bot]'
