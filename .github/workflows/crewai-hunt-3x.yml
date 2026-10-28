@@ -1,17 +1,13 @@
-name: CrewAI Hunt Only - 3x Day
+name: CrewAI Hunt - Daily
 
 on:
   schedule:
-    - cron: "0 15 * * *"
-    - cron: "0 16 * * *"
-    - cron: "0 19 * * *"
-    - cron: "0 20 * * *"
-    - cron: "0 23 * * *"
-    - cron: "0 0 * * *"
+    - cron: "0 15 * * *"   # 11 AM ET (EST)
+    - cron: "0 16 * * *"   # 11 AM ET (EDT) - guard script runs only one
   workflow_dispatch:
     inputs:
       force_hunt:
-        description: "Run hunt + Zoho ingest now even if not 11/15/19 ET (hunt only - NO outreach)"
+        description: "Run hunt + Zoho ingest now even if not 11 AM ET (hunt only - NO outreach)"
         required: false
         default: "false"
 
