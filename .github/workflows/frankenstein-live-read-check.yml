@@ -1,0 +1,40 @@
+name: Frankenstein live READ ONLY checks
+on:
+  push:
+    branches: [fix/frankenstein-tested-a6d401]
+    paths: [.github/workflows/frankenstein-live-read-check.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  read-only-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Read health and credential status only - never run pipelines
+        env:
+          MACHINE_TOKEN: ${{ secrets.MACHINE_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json,os,re,requests
+          base='https://sjt-concierge.onrender.com'
+          headers={'x-machine-token':os.environ.get('MACHINE_TOKEN','')}
+          failed=False
+          for path in ('/ping','/debug','/zoho-direct-test'):
+              try:
+                  r=requests.get(base+path,headers=headers,timeout=90,allow_redirects=False)
+                  try: d=r.json()
+                  except ValueError: d={}
+                  if not isinstance(d,dict):d={}
+                  selected={k:d[k] for k in ('alive','crm','composio_zoho_connected','composio_zoho_status_check','zoho_direct_bypass_configured','direct_configured','direct_ok','sample_count') if k in d and isinstance(d[k],(bool,int,str))}
+                  error_codes=sorted(set(re.findall(r'\b(?:invalid_code|invalid_client|invalid_token|invalid_scope|unauthorized|access_denied)\b',str(d.get('error','')).lower())))
+                  print(json.dumps({'path':path,'http_status':r.status_code,'status_fields':selected,'error_codes':error_codes}))
+                  if r.status_code>=300 or (path=='/ping' and d.get('alive') is not True) or (path=='/zoho-direct-test' and d.get('direct_ok') is not True):failed=True
+              except Exception as ex:
+                  print(json.dumps({'path':path,'error_type':type(ex).__name__}));failed=True
+          if failed:raise SystemExit(1)
+          PY
