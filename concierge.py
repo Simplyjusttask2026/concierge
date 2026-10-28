@@ -183,37 +183,16 @@ def _composio_failed(resp):
     return "No connected account found" in txt or "ActionExecute_ConnectedAccountNotFound" in txt
 
 def zoho_exec(slug, args):
-    # zoho-direct-first-v1: CRM tries direct Render->Zoho FIRST, so Zoho works
-    # with no Composio at all (no Composio quota/chat dependency). The Composio
-    # bridge is only a backup for CRM. Zoho Mail slugs still use Composio first.
-    is_crm = slug.startswith("ZOHO_") and "MAIL" not in slug
-    direct_error = None
-    if is_crm and _zoho_direct_configured():
-        direct = _zoho_direct_exec(slug, args)
-        if not (isinstance(direct, dict) and direct.get("error")):
-            print("ZOHO VIA DIRECT (primary, no Composio):", slug)
-            return direct
-        direct_error = str(direct.get("error"))[:220]
-    try:
-        resp = composio.tools.execute(slug=slug, arguments=args, user_id=COMPOSIO_USER_ID, dangerously_skip_version_check=True)
-    except TypeError:
+    from zoho_route_policy import execute as _route_zoho
+    def bridge(tool_slug, arguments):
         try:
-            resp = composio.tools.execute(slug, args, COMPOSIO_USER_ID)
-        except Exception as e:
-            resp = {"error": str(e)}
-    except Exception as e:
-        resp = {"error": str(e)}
-    if _composio_failed(resp) and is_crm:
-        if direct_error:
-            return {"error": "Direct Zoho failed (%s); Composio backup failed (%s)" % (direct_error, json.dumps(resp, default=str)[:80])}
-        direct = _zoho_direct_exec(slug, args)
-        if not (isinstance(direct, dict) and direct.get("error")):
-            print("ZOHO VIA DIRECT BYPASS:", slug)
-            return direct
-        return {"error": "Direct bypass failed (%s); Composio failed (%s)" % (str(direct.get("error"))[:220], json.dumps(resp, default=str)[:80])}
-    if direct_error and is_crm:
-        print("ZOHO VIA COMPOSIO BRIDGE (direct failed, backup worked):", slug)
-    return resp
+            return composio.tools.execute(slug=tool_slug, arguments=arguments, user_id=COMPOSIO_USER_ID, dangerously_skip_version_check=True)
+        except TypeError as ex:
+            text=str(ex)
+            if 'unexpected keyword argument' not in text and 'positional-only' not in text:
+                raise
+            return composio.tools.execute(tool_slug, arguments, COMPOSIO_USER_ID)
+    return _route_zoho(slug, args, _zoho_direct_exec, bridge, _zoho_direct_configured())
 def zoho_ok(resp):
     return response_ok(resp)
 
