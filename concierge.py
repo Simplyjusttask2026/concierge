@@ -2,6 +2,7 @@ import os, time, json, datetime, re
 # Keys come from environment variables (set on Render) - safe!
 
 import requests
+from reliability import pending_leads, response_ok, opted_out, check_token, start_job, job_status, save_draft, record_report, queued_lead_ids
 try:
     from zoneinfo import ZoneInfo
 except Exception:
@@ -214,7 +215,7 @@ def zoho_exec(slug, args):
         print("ZOHO VIA COMPOSIO BRIDGE (direct failed, backup worked):", slug)
     return resp
 def zoho_ok(resp):
-    return isinstance(resp, dict) and not resp.get("error") and resp.get("successful", True)
+    return response_ok(resp)
 
 @tool("handoff_to_human")
 def handoff_to_human(full_name: str, contact: str, topic: str, summary: str, urgency: str = "normal") -> str:
@@ -235,16 +236,23 @@ def save_lead(full_name: str, email: str, phone: str, address: str,
     grade = 'A' (high intent) or 'B' (browsing)."""
     parts = full_name.strip().split()
     first, last = parts[0], (parts[-1] if len(parts) > 1 else parts[0])
-    # Dedupe by email
+    # Dedupe by email and then phone; fail closed on lookup errors.
     try:
         existing = zoho_exec("ZOHO_SEARCH_ZOHO_RECORDS",
                              {"module_api_name": "Leads", "email": email,
                               "fields": "id,Full_Name,Email", "per_page": 1})
+        if not response_ok(existing):
+            return "ERROR: CRM dedupe read failed; no lead created"
         data = (existing.get("data") or {}).get("data") if isinstance(existing, dict) else None
+        if not data and phone:
+            existing = zoho_exec("ZOHO_SEARCH_ZOHO_RECORDS", {"module_api_name":"Leads","phone":phone,"fields":"id,Full_Name,Email","per_page":1})
+            if not response_ok(existing):
+                return "ERROR: CRM phone dedupe failed; no lead created"
+            data = (existing.get("data") or {}).get("data")
         if data:
             return "SUCCESS: lead already exists in CRM with id " + str(data[0].get("id"))
     except Exception:
-        pass
+        return "ERROR: CRM dedupe unavailable; no lead created"
     desc = ("Address: %s | Service: %s | Grade: %s | Source: Website Concierge" %
             (address, service_needed, grade.upper()))
     resp = zoho_exec("ZOHO_CREATE_ZOHO_RECORD", {
@@ -566,25 +574,28 @@ def _sync_recent_cal_bookings(limit=50):
         result["errors"].append("CAL_API_KEY not loaded")
         return result
     try:
-        r = requests.get("https://api.cal.com/v2/bookings",
-                         headers={**CAL_HEADERS, "cal-api-version": "2024-08-13"},
-                         params={"take": int(limit), "skip": 0, "sortStart": "asc"},
-                         timeout=30)
-        try:
+        bookings, skip, seen_uids = [], 0, set()
+        recent = (datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(hours=1)).isoformat()
+        while True:
+            r = requests.get("https://api.cal.com/v2/bookings", headers={**CAL_HEADERS,"cal-api-version":"2024-08-13"}, params={"take":100,"skip":skip,"sortStart":"asc","afterStart":recent},timeout=30)
+            if r.status_code != 200:
+                raise RuntimeError('Cal bookings list HTTP ' + str(r.status_code))
             d = r.json()
-        except Exception:
-            d = {}
-        if r.status_code not in (200, 201):
-            result["errors"].append("Cal bookings list HTTP %s: %s"
-                                     % (r.status_code, json.dumps(d)[:250]))
-            return result
+            page = _resp_data(d)
+            if isinstance(page,dict): page = page.get('data') or page.get('bookings') or []
+            if not isinstance(page,list): raise RuntimeError('Unexpected Cal page')
+            fresh = [b for b in page if str(b.get('uid') or b.get('id')) not in seen_uids]
+            if page and not fresh: raise RuntimeError('Cal pagination repeated')
+            bookings.extend(fresh)
+            seen_uids.update(str(b.get('uid') or b.get('id')) for b in fresh)
+            pagination = d.get('pagination',{})
+            if not pagination.get('hasNextPage') and len(page)<100: break
+            if pagination.get('hasNextPage') is False: break
+            skip += len(page)
+            if not page: break
     except Exception as e:
-        result["errors"].append("Cal bookings list failed: " + str(e)[:250])
+        result['errors'].append('Cal bookings read failed: ' + str(e)[:150])
         return result
-    data = _resp_data(d)
-    bookings = data if isinstance(data, list) else []
-    if isinstance(data, dict):
-        bookings = data.get("data") or data.get("bookings") or []
     now = datetime.datetime.now(datetime.timezone.utc)
     for b in bookings if isinstance(bookings, list) else []:
         info = _booking_info(b)
@@ -1013,10 +1024,121 @@ agent = Agent(
 app = Flask(__name__)
 CORS(app)
 
+@app.before_request
+def protect_management():
+    # Public guest chat is separate from owner management and write operations.
+    public_paths = {'/', '/ping', '/api/chat'}
+    if request.path in public_paths:
+        return None
+    expected = os.environ.get('MACHINE_TOKEN', '')
+    supplied = request.headers.get('x-machine-token', '')
+    if not expected:
+        return jsonify({'error':'owner_management_not_configured'}), 503
+    if not check_token(expected, supplied):
+        return jsonify({'error':'unauthorized'}), 401
+    return None
+
+@app.route('/jobs/<job_id>', methods=['GET'])
+def owner_job_status(job_id):
+    result = job_status(job_id)
+    return (jsonify(result), 200) if result else (jsonify({'error':'not_found'}),404)
+
+@app.route('/owner-drafts', methods=['GET'])
+def owner_drafts():
+    from reliability import database
+    # Owner-authenticated endpoint only; do not cache recipient/body data.
+    with database() as connection:
+        rows = connection.execute('SELECT id,fingerprint,channel,recipient,subject,body,status,created FROM drafts ORDER BY created DESC LIMIT 100').fetchall()
+    response = jsonify({'drafts':[dict(zip(('id','fingerprint','channel','recipient','subject','body','status','created'),r)) for r in rows]})
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+@app.route('/owner-drafts/<draft_id>/send', methods=['POST'])
+def send_reviewed_draft(draft_id):
+    from reliability import claim_draft, finish_draft, database
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload,dict):
+        return jsonify({'error':'invalid request'}),400
+    # Check opt-out on fresh CRM data before claiming or sending an outreach draft.
+    with database() as connection:
+        meta = connection.execute('SELECT channel,lead_id FROM drafts WHERE id=?',(draft_id,)).fetchone()
+    if not meta:
+        return jsonify({'error':'not_found'}),404
+    if meta[0]=='email':
+        fresh = zoho_exec('ZOHO_GET_ZOHO_RECORDS',{'module_api_name':'Leads','ids':meta[1],'fields':'id,Email,Description,Lead_Status','per_page':1})
+        if not response_ok(fresh):
+            return jsonify({'error':'CRM eligibility check failed; nothing sent'}),409
+        rows = _zoho_rows(fresh)
+        if not rows or opted_out(rows[0]) or rows[0].get('Lead_Status') in ('Appointment Set','Junk Lead','Lost Lead'):
+            return jsonify({'error':'Lead no longer eligible; nothing sent'}),409
+        current_email = str(rows[0].get('Email') or '').strip().lower()
+        with database() as connection:
+            recipient=connection.execute('SELECT recipient FROM drafts WHERE id=?',(draft_id,)).fetchone()[0]
+        if current_email != recipient.strip().lower() or recipient.lower().endswith(('@example.com','@example.org','@example.net')):
+            return jsonify({'error':'Recipient changed or is a sample address; nothing sent'}),409
+    try:
+        draft=claim_draft(draft_id,str(payload.get('confirmation') or ''))
+    except ValueError as ex:
+        return jsonify({'error':str(ex)}),409
+    try:
+        channel=draft['channel']
+        if channel in ('email','owner_report'):
+            result=zoho_exec('ZOHO_MAIL_MESSAGES_SEND_EMAIL',{'accountId':ZOHO_MAIL_ACCOUNT_ID,'fromAddress':ZOHO_FROM,'toAddress':draft['recipient'],'subject':draft['subject'],'content':draft['body'],'mailFormat':'plaintext'})
+            message_id=_find_key(result,('messageId','message_id'))
+            if not response_ok(result) or not message_id: raise RuntimeError('Email acceptance not confirmed')
+            terminal='provider_accepted'
+            if channel=='email' and draft['lead_id']:
+                old_notes=str(rows[0].get('Description') or '')
+                stages=re.findall(r'\[SJT followup step=(\d+)\]',old_notes)
+                step=(int(stages[-1]) if stages else 0)+1
+                delay={1:3,2:4,3:5}.get(step,30)
+                next_due=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(days=delay)).date().isoformat()
+                old_notes=re.sub(r'\[SJT followup (?:due|step)=[^\]]+\]','',old_notes)
+                note=' [SJT followup step=%s] [SJT followup due=%s] Provider accepted email; delivery not independently proven.' % (step,next_due)
+                updated=zoho_exec('ZOHO_UPDATE_ZOHO_RECORD',{'module_api_name':'Leads','data':[{'id':draft['lead_id'],'Lead_Status':'Recycled' if step>=4 else 'Attempted to Contact','Description':(old_notes+note)[-2000:]}]})
+                if not response_ok(updated): terminal='accepted_crm_sync_failed'
+            finish_draft(draft_id,terminal,str(message_id))
+            return jsonify({'status':terminal,'note':'Provider acceptance, not independent delivery proof'}),200
+        if channel=='facebook':
+            result=_social_exec('FACEBOOK_CREATE_POST',{'page_id':SOCIAL_FB_PAGE_ID,'message':draft['body'],'published':True})
+            post_id=_find_key(result,('post_id','id'))
+            if not response_ok(result) or not post_id: raise RuntimeError('Post result not confirmed')
+            verify=_social_exec('FACEBOOK_GET_POST',{'post_id':str(post_id),'fields':'id,message,permalink_url'})
+            if not response_ok(verify) or _find_key(verify,('message',)) != draft['body']: raise RuntimeError('Post readback not confirmed')
+            finish_draft(draft_id,'published_verified',str(post_id))
+            return jsonify({'status':'published_verified','post_id':post_id}),200
+        if channel=='instagram':
+            from urllib.parse import urlparse
+            parsed=urlparse(draft['subject'])
+            if parsed.scheme!='https' or parsed.hostname not in ('www.simplyjusttask.com','simplyjusttask.com','images.squarespace-cdn.com','images.pexels.com','images.unsplash.com'):
+                raise RuntimeError('Unapproved real-photo host')
+            asset=requests.head(draft['subject'],timeout=20,allow_redirects=False)
+            if asset.status_code!=200 or asset.headers.get('Content-Type','').split(';')[0].lower()!='image/jpeg': raise RuntimeError('Direct public JPEG required')
+            container=_social_exec('INSTAGRAM_POST_IG_USER_MEDIA',{'ig_user_id':'me','image_url':draft['subject'],'caption':draft['body']})
+            cid=_find_key(container,('creation_id','id'))
+            if not response_ok(container) or not cid: raise RuntimeError('Container creation unconfirmed')
+            published=_social_exec('INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH',{'ig_user_id':'me','creation_id':str(cid),'max_wait_seconds':120})
+            mid=_find_key(published,('id',))
+            if not response_ok(published) or not mid: raise RuntimeError('Publication unconfirmed')
+            verify=_social_exec('INSTAGRAM_GET_IG_MEDIA',{'ig_media_id':str(mid),'fields':'id,caption,permalink'})
+            if not response_ok(verify) or _find_key(verify,('caption',))!=draft['body']: raise RuntimeError('Instagram readback unconfirmed')
+            finish_draft(draft_id,'published_verified',str(mid))
+            return jsonify({'status':'published_verified','media_id':mid}),200
+        raise RuntimeError('Unsupported reviewed channel')
+    except Exception:
+        finish_draft(draft_id,'uncertain','Inspect provider account; no automatic retry')
+        return jsonify({'status':'uncertain','note':'May have sent; inspect provider before any further action'}),502
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    message = request.json.get("message", "").strip()
-    history = request.json.get("history", [])[-12:]
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get('message'), str):
+        return jsonify({'error':'message must be a string'}), 400
+    message = payload['message'].strip()[:4000]
+    incoming = payload.get('history', [])
+    if not isinstance(incoming, list):
+        return jsonify({'error':'history must be an array'}), 400
+    history = [{'role':m['role'],'content':m['content'][:4000]} for m in incoming[-12:] if isinstance(m,dict) and m.get('role') in ('user','assistant') and isinstance(m.get('content'),str)]
     if not message:
         return jsonify({"reply": "Please type a message! :)"})
 
@@ -1123,8 +1245,8 @@ def _et_now():
 def _call_center_window_open(now=None):
     return 8 <= (now or _et_now()).hour < 21
 def _lead_is_stopped(ld):
-    txt = (" " + str((ld or {}).get("Description") or "") + " ").upper()
-    return " STOP " in txt or "OPT OUT" in txt
+    return opted_out(ld or {})
+
 def _fn(name):
     x = str(name or "").split(); return x[0] if x else "there"
 def _call_center_plan(leads, now=None):
@@ -1172,12 +1294,7 @@ def run_daily_pipeline():
         datetime.timezone(datetime.timedelta(hours=-4))).strftime("%Y-%m-%d %H:%M ET"),
         "leads": [], "outreach": [], "errors": [], "cal_sync": {}, "outreach_open": _outreach_open}
     try:
-        resp = zoho_exec("ZOHO_GET_ZOHO_RECORDS", {
-            "module_api_name": "Leads",
-            "fields": "First_Name,Last_Name,Email,Phone,City,Description,Lead_Status,Lead_Source,Created_Time",
-            "sort_by": "Created_Time", "sort_order": "desc", "per_page": 50})
-        print("RAW ZOHO FETCH:", json.dumps(resp, default=str)[:800])
-        leads = (resp.get("data") or {}).get("data") or []
+        leads = pending_leads(zoho_exec, batch=50, exclude=queued_lead_ids())
     except Exception as e:
         leads = []
         report["errors"].append("fetch leads failed: " + str(e)[:200])
@@ -1193,8 +1310,8 @@ def run_daily_pipeline():
                  "phone": ld.get("Phone"), "city": ld.get("City"),
                  "source": ld.get("Lead_Source"), "old_status": status}
         try:
-            if status in ("Not Contacted", None, "-None-"):
-                q = _llm_json(QUALIFY_PROMPT, json.dumps(ld, default=str)[:2000])
+            if status in ("Not Contacted", "Pre-Qualified", "Attempted to Contact", "Recycled", "Contact in Future", None, "-None-"):
+                q = ({'status':'Pre-Qualified','score':None,'notes':'Previously qualified; queued for owner review'} if status in ('Pre-Qualified','Attempted to Contact') else _llm_json(QUALIFY_PROMPT, json.dumps(ld, default=str)[:2000]))
                 entry["ai_score"] = q.get("score")
                 entry["ai_notes"] = q.get("notes")
                 raw_status = q.get("status", "Not Qualified")
@@ -1205,39 +1322,26 @@ def run_daily_pipeline():
                 entry["new_status"] = new_status
                 recycled_note = ""
                 if new_status == "Recycled":
-                    recycled_note = " | Recycle follow-up: +30 days, never delete."
+                    due_date = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).date().isoformat()
+                    recycled_note = " [SJT followup due=%s] Recycle: never delete." % due_date
                 note = "\n\n[AI Qualifier %s] Score %s/100. %s%s" % (
                     report["date"], q.get("score"), q.get("notes"), recycled_note)
-                zoho_exec("ZOHO_UPDATE_ZOHO_RECORD", {
+                update = zoho_exec("ZOHO_UPDATE_ZOHO_RECORD", {
                     "module_api_name": "Leads",
                     "data": [{"id": str(ld["id"]), "Lead_Status": new_status,
-                              "Description": ((ld.get("Description") or "") + note)[:2000]}]})
-                if (new_status == "Pre-Qualified" and ld.get("Email")
-                        and len(report["outreach"]) >= OUTREACH_DAILY_CAP):
-                    entry["ai_notes"] = (entry.get("ai_notes") or "") + " | Outreach QUEUED for tomorrow (daily cap)"
-                elif new_status == "Pre-Qualified" and ld.get("Email") and _lead_is_stopped(ld):
-                    entry["outreach_suppressed"] = "STOP/opt-out in lead notes - do not contact"
-                elif new_status == "Pre-Qualified" and ld.get("Email") and not _outreach_open:
-                    entry["outreach_held"] = "outside 8am-9pm ET - hold for next 9AM run, no send at night"
-                elif new_status == "Pre-Qualified" and ld.get("Email") and _outreach_open:
-                    try:
+                              "Description": ((ld.get("Description") or "") + note)[-2000:]}]})
+                if not response_ok(update):
+                    raise RuntimeError('CRM qualification update failed')
+                if new_status == "Pre-Qualified" and ld.get("Email") and not _lead_is_stopped(ld):
+                    if len(report['outreach']) >= OUTREACH_DAILY_CAP:
+                        entry['queued'] = 'Held for next review batch; remains Pre-Qualified'
+                    else:
                         m = _llm_json(OUTREACH_PROMPT, json.dumps(ld, default=str)[:1500])
-                        send = zoho_exec("ZOHO_MAIL_MESSAGES_SEND_EMAIL", {
-                            "accountId": ZOHO_MAIL_ACCOUNT_ID,
-                            "fromAddress": ZOHO_FROM,
-                            "toAddress": ld["Email"],
-                            "subject": m.get("subject", "Your free estimate from Simply Just Task"),
-                            "content": m.get("body", ""), "mailFormat": "plaintext"})
-                        zoho_exec("ZOHO_UPDATE_ZOHO_RECORD", {
-                            "module_api_name": "Leads",
-                            "data": [{"id": str(ld["id"]), "Lead_Status": "Attempted to Contact"}]})
-                        entry["new_status"] = "Attempted to Contact"
-                        entry["outreach_sent"] = zoho_ok(send)
-                        report["outreach"].append({"to": ld["Email"], "name": name,
-                            "subject": m.get("subject"), "body": m.get("body"),
-                            "sent": zoho_ok(send)})
-                    except Exception as e:
-                        report["errors"].append("outreach %s: %s" % (name, str(e)[:200]))
+                        draft_id = save_draft('email',ld['Email'],m.get('subject','Your free estimate from Simply Just Task'),m.get('body',''),str(ld['id']))
+                        entry['draft_id'] = draft_id
+                        entry['outreach_sent'] = False
+                        report['outreach'].append({'to':ld['Email'],'name':name,'subject':m.get('subject'),'body':m.get('body'),'sent':False,'draft_id':draft_id})
+                        entry['ai_notes'] = (entry.get('ai_notes') or '') + ' | Saved for exact owner confirmation; NOT sent'
             else:
                 entry["new_status"] = status
                 entry["ai_notes"] = "Skipped - already " + str(status)
@@ -1284,15 +1388,9 @@ def run_daily_pipeline():
     if report["errors"]:
         lines += ["", "=== ERRORS ==="] + report["errors"]
     body = "\n".join(lines)
-    try:
-        zoho_exec("ZOHO_MAIL_MESSAGES_SEND_EMAIL", {
-            "accountId": ZOHO_MAIL_ACCOUNT_ID, "fromAddress": ZOHO_FROM,
-            "toAddress": REPORT_EMAIL, "ccAddress": REPORT_CC,
-            "subject": "SJT Lead Machine Report - " + report["date"],
-            "content": body, "mailFormat": "plaintext"})
-    except Exception as e:
-        print("report email failed:", e)
-    print(body)
+    report['report_draft_id'] = record_report('SJT Lead Machine Report - ' + report['date'], body)
+    print('SJT daily complete: reviewed=%s drafts=%s errors=%s; no outreach sent' % (len(report['leads']),len(report['outreach']),len(report['errors'])))
+    return report
 
 
 # ================= SOCIAL MEDIA CREW =================
@@ -1361,70 +1459,29 @@ SOCIAL_SERVICES = [
 ]
 
 def run_social_pipeline():
-    # social-auto-v1: 1 service/day by date rotation, AI image, FB+IG photo post, no human trigger needed beyond the timer calling /run-social
-    try:
-        now_et = datetime.datetime.now(ZoneInfo('America/New_York')) if ZoneInfo else datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-4)))
-    except Exception:
-        now_et = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-4)))
-    svc_name, svc_hook, svc_tag, svc_prompt = SOCIAL_SERVICES[now_et.date().toordinal() % len(SOCIAL_SERVICES)]
-    rep = {'date': now_et.strftime('%Y-%m-%d %H:%M ET'), 'service': svc_name, 'actions': [], 'errors': []}
-    caption = ('\u2728 ' + svc_hook + ' \u2728\n' + 'Simply Just Task helps busy families, homeowners and seniors in Apopka and Central Florida with ' + svc_name.lower() + ' - reliable help for everyday life.\n' + '\U0001f4de Free consultation: (888) 566-7570\n' + '\U0001f310 simplyjusttask.com\n' + '\U0001f4c5 ' + CAL_LINK + '\n' + 'Image: AI illustration.\n' + '#Apopka #CentralFlorida #SimplyJustTask #' + svc_tag + ' #HomeTasks #Concierge')
-    rep['actions'].append('service_of_day: ' + svc_name)
-    image_url = ''
-    image_source = ''
-    try:
-        g = _social_exec('GEMINI_GENERATE_IMAGE', {'prompt': svc_prompt, 'aspect_ratio': '1:1', 'image_size': '1K'})
-        image_url = _find_image_url(g)
-        if image_url:
-            image_source = 'gemini'
-        else:
-            rep['errors'].append('gemini image: no url in response ' + json.dumps(g, default=str)[:300])
-    except Exception as e:
-        rep['errors'].append('gemini image: ' + str(e)[:200])
-    if not image_url:
-        import urllib.parse
-        image_url = 'https://image.pollinations.ai/prompt/' + urllib.parse.quote(svc_prompt) + '?width=1024&height=1024&seed=' + str(now_et.date().toordinal()) + '&nologo=true'
-        image_source = 'pollinations-fallback'
-    rep['actions'].append('image_source: ' + image_source)
-    rep['actions'].append('image_url_host: ' + image_url.split('/')[2] if '://' in image_url else 'image ready')
-    fb_resp = _social_exec('FACEBOOK_CREATE_PHOTO_POST', {'page_id': SOCIAL_FB_PAGE_ID, 'url': image_url, 'message': caption, 'published': True})
-    fb_id = _find_key(fb_resp, ('post_id', 'id'))
-    if fb_id and not (isinstance(fb_resp, dict) and fb_resp.get('error')):
-        rep['actions'].append('facebook_post_id: ' + str(fb_id))
-    else:
-        rep['errors'].append('facebook post: ' + json.dumps(fb_resp, default=str)[:500])
-    ig_container = _social_exec('INSTAGRAM_POST_IG_USER_MEDIA', {'ig_user_id': SOCIAL_IG_USER_ID, 'image_url': image_url, 'caption': caption})
-    ig_cid = _find_key(ig_container, ('creation_id', 'id'))
-    if ig_cid and not (isinstance(ig_container, dict) and ig_container.get('error')):
-        ig_pub = _social_exec('INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH', {'ig_user_id': SOCIAL_IG_USER_ID, 'creation_id': str(ig_cid), 'max_wait_seconds': 120})
-        ig_mid = _find_key(ig_pub, ('id',))
-        if ig_mid and not (isinstance(ig_pub, dict) and ig_pub.get('error')):
-            rep['actions'].append('instagram_media_id: ' + str(ig_mid))
-        else:
-            rep['errors'].append('instagram publish: ' + json.dumps(ig_pub, default=str)[:500])
-    else:
-        rep['errors'].append('instagram container: ' + json.dumps(ig_container, default=str)[:500])
-    try:
-        social_tools = []
-        for tk in SOCIAL_PLATFORMS:
-            try:
-                t = list(composio.tools.get(user_id=COMPOSIO_USER_ID, toolkits=[tk]))
-                social_tools += t
-            except Exception as e:
-                rep['errors'].append(tk + ' reply tools: ' + str(e)[:150])
-        if social_tools:
-            social_agent = Agent(role='Social Media Manager', goal='Only check and warmly reply to new Simply Just Task social messages and comments, and capture buying interest as leads. Do NOT create any post today - today post was already published by social-auto-v1.', backstory='You represent Simply Just Task. Warm, human, never pushy. Booking link: ' + CAL_LINK, tools=social_tools + [save_lead], llm=llm, verbose=True)
-            reply_task = Task(description='Check new unread messages/comments on Facebook and Instagram ONLY. Do NOT post. Reply warmly. If buying intent, collect name email phone service and call save_lead grade A.', expected_output='List of replies sent and leads saved, or none', agent=social_agent)
-            result = Crew(agents=[social_agent], tasks=[reply_task]).kickoff()
-            rep['actions'].append('reply crew: ' + str(result)[:1000])
-    except Exception as e:
-        rep['errors'].append('reply crew: ' + str(e)[:300])
-    body = 'SOCIAL MEDIA CREW REPORT - social-auto-v1\nDate: ' + rep['date'] + '\nService: ' + svc_name + '\nCaption:\n' + caption + '\n\n' + '\n'.join(rep['actions']) + '\n\nERRORS:\n' + '\n'.join(rep['errors'])
-    try:
-        zoho_exec('ZOHO_MAIL_MESSAGES_SEND_EMAIL', {'accountId': ZOHO_MAIL_ACCOUNT_ID, 'fromAddress': ZOHO_FROM, 'toAddress': REPORT_EMAIL, 'ccAddress': REPORT_CC, 'subject': 'SJT Social Crew Report - ' + rep['date'], 'content': body, 'mailFormat': 'plaintext'})
-    except Exception as e:
-        print('social report email failed:', e)
-    print(body)
+    from scripts.ads_team import SERVICES, produce_batch
+    now = _et_now()
+    service = list(SERVICES)[now.date().toordinal() % len(SERVICES)]
+    batch = produce_batch(service)
+    report = {'date':now.isoformat(),'service':service,'errors':[],'drafts':[]}
+    for channel in ('facebook','instagram'):
+        item = batch['drafts'][channel]
+        if not item['ok']:
+            report['errors'].append(channel + ': compliance failed')
+            continue
+        asset = os.environ.get('SJT_SOCIAL_REAL_PHOTO_URL','') if channel == 'instagram' else ''
+        if channel == 'instagram':
+            from urllib.parse import urlparse
+            parsed = urlparse(asset)
+            if parsed.scheme != 'https' or parsed.hostname not in ('www.simplyjusttask.com','simplyjusttask.com','images.squarespace-cdn.com','images.pexels.com','images.unsplash.com'):
+                report['errors'].append('instagram: owner-approved real photo URL required; no paid/generated fallback')
+                continue
+        draft_id = save_draft(channel,'Simply Just Task',asset,item['text'])
+        report['drafts'].append({'channel':channel,'draft_id':draft_id})
+    report['report_draft_id'] = record_report('SJT Social Crew Report',json.dumps(report,ensure_ascii=False))
+    # No autonomous replies/image generation/live publication. Exact posts require approval.
+    return report
+
 
 # ================= CREWAI STUDIO -> ZOHO BRIDGE =================
 # POST /ingest-crewai-leads  {leads:[...]}  or {result: "..."} or {output: "..."}
@@ -1583,17 +1640,31 @@ def crewai_task_webhook():
     print(f"CREWAI TASK WEBHOOK task={task_name} received={len(leads)} created={created} exists={exists} errors={errors}")
     return jsonify({"status": "ok", "task": task_name, "received": len(leads), "created": created, "exists": exists, "errors": errors, "results": results}), 200
 
-@app.route("/run-social", methods=["GET", "POST"])
+@app.route('/run-social', methods=['POST'])
 def run_social():
-    threading.Thread(target=run_social_pipeline, daemon=True).start()
-    return jsonify({"status": "started",
-                    "note": "social crew running; report will be emailed to " + REPORT_EMAIL}), 202
+    if os.environ.get('SJT_AUTOMATION_ENABLED') != 'true':
+        return jsonify({'error':'automation_disabled_pending_owner_activation'}), 503
+    try:
+        row, created = start_job('social', run_social_pipeline)
+    except ValueError as ex:
+        return jsonify({'error':str(ex)}), 503
+    response = jsonify({'job_id':row[0],'status':row[1],'created':created,'outreach':'owner_confirmation_required'})
+    response.status_code = 202 if created else 200
+    return response
 
-@app.route("/run-daily", methods=["GET", "POST"])
+
+@app.route('/run-daily', methods=['POST'])
 def run_daily():
-    threading.Thread(target=run_daily_pipeline, daemon=True).start()
-    return jsonify({"status": "started",
-                    "note": "pipeline running; report will be emailed to " + REPORT_EMAIL}), 202
+    if os.environ.get('SJT_AUTOMATION_ENABLED') != 'true':
+        return jsonify({'error':'automation_disabled_pending_owner_activation'}), 503
+    try:
+        row, created = start_job('daily', run_daily_pipeline)
+    except ValueError as ex:
+        return jsonify({'error':str(ex)}), 503
+    response = jsonify({'job_id':row[0],'status':row[1],'created':created,'outreach':'owner_confirmation_required'})
+    response.status_code = 202 if created else 200
+    return response
+
 
 @app.route("/sync-cal-bookings", methods=["POST"])
 def sync_cal_bookings():
