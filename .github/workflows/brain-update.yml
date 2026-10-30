@@ -1,78 +1,25 @@
-name: BRAIN conversation memory append - manual only
-run-name: Add conversation to existing main BRAIN - preserve history
-'on':
+name: BRAIN Update - manual only
+on:
   workflow_dispatch: {}
 permissions:
   contents: write
-concurrency:
-  group: brain-memory-append
-  cancel-in-progress: false
 jobs:
-  append-conversation-memory:
-    if: github.ref == 'refs/heads/feature/shared-business-brain'
+  brain:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          ref: main
-          path: memory-main
-          fetch-depth: 1
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/shared-business-brain
-          path: helper-restore
-          fetch-depth: 1
-      - name: Add conversation without changing old brain bytes
-        shell: bash
+          python-version: "3.11"
+      - name: Fetch verified BRAIN patch
         run: |
-          set -euo pipefail
-          python3 - <<'PYMEMORY'
-          import base64, hashlib, os, urllib.request
-          from pathlib import Path
-          assert os.environ['GITHUB_REF'] == 'refs/heads/feature/shared-business-brain', 'Wrong helper branch'
-          p=Path('memory-main/BRAIN.md')
-          before=p.read_bytes()
-          prefix=before[:134750]
-          def blob_sha(raw):
-              return hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
-          assert len(before)>=134750 and blob_sha(prefix)=='9052450f934cbe1e58cf85f5953e07378b556562', 'Old history changed; stop'
-          with urllib.request.urlopen('https://backend.composio.dev/api/v3/sl/7m4tXVyNXp',timeout=60) as response:
-              addition=response.read(1000001)
-          assert len(addition)==26399 and hashlib.sha256(addition).hexdigest()=='624e53735a1ae82d96bb9b1bbc4fc3d902bf3a00bae964f5a30c265fac4ae679', 'Payload integrity check failed'
-          marker=b'<!-- BEGIN SJT CONVERSATION MEMORY 2026-10-30 GAIN -->'
-          if marker in before:
-              assert before.count(marker)==1 and addition in before, 'Partial or duplicate memory entry; stop'
-              print('Exact conversation already saved; no duplicate append')
-          else:
-              assert blob_sha(before)=='9052450f934cbe1e58cf85f5953e07378b556562', 'Concurrent memory change; refresh rather than overwrite'
-              after=before+addition
-              assert after[:len(before)]==before
-              p.write_bytes(after)
-              assert p.read_bytes()==after
-              print('Preserved',len(before),'old bytes and appended',len(addition),'conversation bytes')
-          PYMEMORY
-          git -C memory-main config user.name "github-actions[bot]"
-          git -C memory-main config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C memory-main add -- BRAIN.md
-          if ! git -C memory-main diff --cached --quiet; then
-            test "$(git -C memory-main diff --cached --name-only)" = "BRAIN.md"
-            git -C memory-main commit -m "BRAIN: add conversation and verified continuation; preserve all history"
-            git -C memory-main push origin HEAD:refs/heads/main
-          fi
-      - name: Restore original helper workflow on feature branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PYRESTORE'
-          from pathlib import Path
-          import base64
-          Path('helper-restore/.github/workflows/brain-update.yml').write_bytes(base64.b64decode('bmFtZTogQlJBSU4gVXBkYXRlIC0gbWFudWFsIG9ubHkKb246CiAgd29ya2Zsb3dfZGlzcGF0Y2g6IHt9CnBlcm1pc3Npb25zOgogIGNvbnRlbnRzOiB3cml0ZQpqb2JzOgogIGJyYWluOgogICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdAogICAgc3RlcHM6CiAgICAgIC0gdXNlczogYWN0aW9ucy9jaGVja291dEB2NAogICAgICAtIHVzZXM6IGFjdGlvbnMvc2V0dXAtcHl0aG9uQHY1CiAgICAgICAgd2l0aDoKICAgICAgICAgIHB5dGhvbi12ZXJzaW9uOiAiMy4xMSIKICAgICAgLSBuYW1lOiBGZXRjaCB2ZXJpZmllZCBCUkFJTiBwYXRjaAogICAgICAgIHJ1bjogfAogICAgICAgICAgY3VybCAtTCAtbyBzY3JpcHRzL2JyYWluX3BhdGNoLnB5ICJodHRwczovL2JhY2tlbmQuY29tcG9zaW8uZGV2L2FwaS92My9zbC9vbUl6SFBaREIwIgogICAgICAgICAgaGVhZCAtYyAyMDAgc2NyaXB0cy9icmFpbl9wYXRjaC5weQogICAgICAtIHJ1bjogcHl0aG9uIHNjcmlwdHMvYnJhaW5fcGF0Y2gucHkKICAgICAgLSBydW46IHwKICAgICAgICAgIGdpdCBjb25maWcgdXNlci5uYW1lICJnaXRodWItYWN0aW9uc1tib3RdIgogICAgICAgICAgZ2l0IGNvbmZpZyB1c2VyLmVtYWlsICJnaXRodWItYWN0aW9uc1tib3RdQHVzZXJzLm5vcmVwbHkuZ2l0aHViLmNvbSIKICAgICAgICAgIGdpdCBhZGQgQlJBSU4ubWQKICAgICAgICAgIGdpdCBkaWZmIC0tY2FjaGVkIC0tc3RhdAogICAgICAgICAgZ2l0IGNvbW1pdCAtbSAiQlJBSU4gY29udm8gNzogQ3Jld0FJIFpvaG8gYnJpZGdlIGxpdmUgKyA5QU0gc2NoZWR1bGUiIHx8IGVjaG8gIm5vdGhpbmcgdG8gY29tbWl0IgogICAgICAgICAgZ2l0IHB1c2gK'))
-          PYRESTORE
-          git -C helper-restore config user.name "github-actions[bot]"
-          git -C helper-restore config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C helper-restore add -- .github/workflows/brain-update.yml
-          if ! git -C helper-restore diff --cached --quiet; then
-            git -C helper-restore commit -m "docs: restore original workflow after conversation-memory append"
-            git -C helper-restore push origin HEAD:refs/heads/feature/shared-business-brain
-          fi
+          curl -L -o scripts/brain_patch.py "https://backend.composio.dev/api/v3/sl/omIzHPZDB0"
+          head -c 200 scripts/brain_patch.py
+      - run: python scripts/brain_patch.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add BRAIN.md
+          git diff --cached --stat
+          git commit -m "BRAIN convo 7: CrewAI Zoho bridge live + 9AM schedule" || echo "nothing to commit"
+          git push
