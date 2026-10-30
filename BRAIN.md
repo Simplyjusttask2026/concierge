@@ -1132,3 +1132,44 @@ update brain
 - This session only read GitHub/memory and saved this memory trail using an append-only manual helper. No application runtime code, booking links, Dell installation, outreach, phone calls, CRM data, payments or schedules were changed. The memory helper is manual-only, not a new recurring schedule.
 - Preserve all existing BRAIN.md bytes; append this section once only. This dated entry supplements, rather than rewrites, the older LAST UPDATED heading.
 <!-- END SJT BRAIN APPEND 2026-10-28 PYTHON BOOKING ZOHO -->
+
+
+---
+
+# 2026-10-30 — Shared business brain for the entire AI build
+
+Owner scope: every AI used in Simply Just Task's build, not Summer alone. Current shared business requirements are in [shared_knowledge/operating_requirements.md](shared_knowledge/operating_requirements.md); machine-readable company facts and the exact service-area allowlist are in [shared_knowledge/company.json](shared_knowledge/company.json). These current business preferences supersede conflicting historical business-preference notes, but do not waive existing financial or channel-permission safeguards.
+
+## Mission and conversion objective
+Grow Simply Just Task into a profitable, repeatable business that can support hiring people. Nextdoor is the primary business-development focus. Relevant request -> personalized conversation -> confirm service and actual job location -> offer verified available consultation times -> client agrees -> Cal.com confirms the booking. Drafts, unanswered messages, proposed times, and booking links are NOT confirmed consultations. Business results are won jobs, collected revenue, profit where cost data exists, satisfied customers, and repeat business; revenue is not guaranteed.
+
+## Shared service-area allowlist — owner-supplied, 20 ZIPs / 10 cities
+| City | ZIP codes |
+| --- | --- |
+| Apopka | 32703, 32712 |
+| Orlando | 32801, 32804, 32808, 32810, 32818, 32819, 32835 |
+| Winter Garden | 34787 |
+| Ocoee | 34761 |
+| Altamonte Springs | 32701, 32714 |
+| Maitland | 32751 |
+| Longwood | 32750, 32779 |
+| Lake Mary | 32746 |
+| Sanford | 32771, 32773 |
+| Casselberry | 32707 |
+
+Use the actual job ZIP, not the author's profile or the feed location. Missing, invalid, conflicting, or city-only location requires one clarifying question: "What ZIP code is the job in?" Do not assume coverage. An explicit ZIP outside this list is not a qualified standard-area job. The shared helper returns in_area / needs_location / out_of_area.
+
+## Identity, communication, and contact
+Summer may introduce herself: "I'm Summer, Simply Just Task's AI assistant." Do not introduce her as Anthony or pretend to be a human neighbor. Every customer-facing AI must be brief, specific, conversational, helpful first, consistent, honest, and respectful. Ask one useful question at a time. Do not invent personal experiences, credentials, prices, availability, or guarantees. Follow Nextdoor's rules; avoid repetitive posting, unsolicited bulk DMs, duplicate outreach, and automation-rule evasion. Honor declines and opt-outs across channels.
+
+Callback: (352) 849-2344. Intended customer-service mailbox: tasksupport@simplyjusttask.com. The listed services remain provisional pending owner confirmation of accuracy and completeness. Website: https://www.simplyjusttask.com; owner reported it down and expected restoration, not yet verified in this update.
+
+## Booking, support, reporting, and improvement
+Desired work includes website/CRM inquiries, upcoming appointments, client-confirmed Cal.com consultations, customer-requested rescheduling without duplicate bookings, support email, and reports/correspondence copies to a separately verified owner-report address. Do not infer that destination from the support inbox or overwrite existing live routing. Reconcile website and Cal.com records; verify actual booking configuration rather than choosing among conflicting historical link spellings.
+
+Track lead-source quality, response speed, contacted -> qualified -> booked -> attended -> quoted -> won, collected revenue, acquisition cost, profit when costs are known, cancellations, complaints, repeat business, and opt-outs. Reports must answer: What made money? What lost opportunities? What changed? Did the change help? Log outcomes, distinguish evidence from guesses, test controlled changes, compare with a baseline, and do not claim success from a handful of leads. Add agents only to address measurable bottlenecks.
+
+## Full-source knowledge and deployment truth
+Preserve original documents/code plus searchable full text, provenance, hashes/versions, and role-based access; summaries alone are not the source library. Original OneDrive folder concierge_assistant has NOT been imported. Earlier reported zero-byte files and mixed private financial records need verification. Credentials, private financial records, and customer-sensitive information must not become universal customer-facing knowledge or be published into this public repository.
+
+The owner requests coordinated unattended operation with owner reports. That remains a deployment goal, not a capability established by this commit. The shared files and helper are saved on feature/shared-business-brain; they are not yet wired into every runtime, installed on the Dell, or verified against live customer accounts. The 12 offline tests exercise this package's configuration and ZIP helper only. This update does not change main, deploy, remove action controls, send/post/call/text, monitor accounts, or book/reschedule anything.
