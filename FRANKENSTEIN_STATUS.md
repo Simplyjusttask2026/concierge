@@ -31,3 +31,24 @@ Live-tested 2026-10-21 overnight closeout. Summary only; BRAIN.md + BRAIN_UPDATE
 - Fix #3 updated: Render Zoho keys ARE present, but direct token test fails `invalid_code`. Owner must regenerate `ZOHO_REFRESH_TOKEN` in Render only. Composio fallback read verified via `/call-center` on 2026-10-22.
 - Hunt-only 3x/day added: `crewai-hunt-3x.yml` + `HUNT_ONLY` in `daily_job.py` (11AM/3PM/7PM ET, Zoho ingest only, NO outreach).
 - Supervised 9AM proof still pending (daylight 8AM-9PM ET only). WhatsApp Meta still owner-only. `MACHINE_TOKEN` missing on both GitHub and Render - set both together or neither.
+
+## ADDENDUM 2026-10-30 — Dell integration and recovery scope (documentation only)
+Historical verification labels above retain their original dates; they are NOT fresh health checks. Owner confirmed a separate documentation branch and separate OneDrive backup, not deployment or live automation changes.
+
+- [x] Locate current main and Dell feature-branch source; identify existing panel/email/draft functions.
+- [x] Save dated baseline source ZIPs to a new Simply Just Task AI Safe OneDrive folder; initial permissions returned owner only.
+- [x] Record public-safe conversation memory in BRAIN_UPDATES/2026-10-30-dell-frankenstein-safe.md, preserving BRAIN.md.
+- [ ] Complete inventory and validation of all relevant master documents; only an initial subset has been reviewed.
+- [ ] BONES: source-traceable knowledge, non-secret configuration, tested installation, runtime diagnostics and rollback.
+- [ ] LEAD VAULT: reuse verified existing CRM, deduplicate, retain source links, lifecycle, opt-outs and follow-up history; no competing production database.
+- [ ] BOOKING: verified calendar availability, duration/travel buffers, estimates and confirmed scheduling; no unverified promises.
+- [ ] LEAD HUNTERS: relevant real inquiries, qualification, respectful follow-ups; never fabricate contacts or import sample leads.
+- [ ] CALL CENTER: individual email drafts/replies/new composition, threading, correct mailbox, configurable owner CC/BCC, duplicate/loop protection, recipient validation and confirmed sends. Owner copy address remains unconfirmed.
+- [ ] CALL CENTER: provider-supported voice intake, AI disclosure/consent, summaries and human handoff; phone AI not established by opening Zoho Voice.
+- [ ] SOCIAL AI: content drafts and clearly labeled image generation; no fake completed-project photos or live publishing under this authorization.
+- [ ] NEXTDOOR AI: permitted intake, real source links, lead scoring and personalized drafts; validate access and platform constraints before implementation.
+- [ ] DAILY SCHEDULE: monitored runs, locks, stop controls, safe retries, restart recovery and reports; avoid duplicate cloud/Dell jobs. Existing live schedules unchanged.
+- [ ] FREE ONLY LOCK: no purchases or paid upgrades; document provider limits and require separate approval for costs.
+- [ ] RECOVERY: capture Dell-only settings and lead database safely, establish encrypted offline copy, verify archive contents/checksums and complete a restore exercise. Source snapshots alone are not a full system backup.
+
+Open decisions: owner BCC address; current business contacts; commercial/residential policy conflict; actual local model and mailbox configuration. Preserve current send-confirmation controls. See SOPS/DELL_RECOVERY_PLAN.md. Runtime features remain planned or unverified unless separately proven. No merge/deploy authorized.
