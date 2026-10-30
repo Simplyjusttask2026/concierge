@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "status": "prepared_offline_not_installed",
+  "business_name": "Simply Just Task",
+  "website": {
+    "url": "https://www.simplyjusttask.com",
+    "status": "owner_reported_down",
+    "expected_return": "owner_expects_it_back_today; not verified"
+  },
+  "callback": {
+    "display": "(352) 849-2344",
+    "e164": "+13528492344"
+  },
+  "customer_service_email": "tasksupport@simplyjusttask.com",
+  "owner_report_email": null,
+  "customer_facing_persona": {
+    "name": "Summer",
+    "disclosure": "I'm Summer, Simply Just Task's AI assistant."
+  },
+  "services": {
+    "confirmation_status": "accuracy_and_completeness_need_owner_confirmation",
+    "items": [
+      "Handyman/home repairs, drywall, toilets, TV mounting, furniture assembly",
+      "House cleaning",
+      "Lawn and yard care",
+      "Pressure washing",
+      "Errands, home watch, senior help, pet sitting/dog walking",
+      "Small-engine/mower repair"
+    ]
+  },
+  "service_area": {
+    "confirmation_source": "owner_supplied_city_zip_table",
+    "cities": {
+      "Apopka": [
+        "32703",
+        "32712"
+      ],
+      "Orlando": [
+        "32801",
+        "32804",
+        "32808",
+        "32810",
+        "32818",
+        "32819",
+        "32835"
+      ],
+      "Winter Garden": [
+        "34787"
+      ],
+      "Ocoee": [
+        "34761"
+      ],
+      "Altamonte Springs": [
+        "32701",
+        "32714"
+      ],
+      "Maitland": [
+        "32751"
+      ],
+      "Longwood": [
+        "32750",
+        "32779"
+      ],
+      "Lake Mary": [
+        "32746"
+      ],
+      "Sanford": [
+        "32771",
+        "32773"
+      ],
+      "Casselberry": [
+        "32707"
+      ]
+    },
+    "zip_count": 20,
+    "missing_job_zip_policy": "ask_for_job_zip_do_not_assume",
+    "out_of_area_policy": "not_qualified_for_standard_booking; do_not_promise_service",
+    "location_evidence": "explicit_job_zip; do_not_use_author_profile_location_as_job_location"
+  },
+  "primary_business_development_channel": "Nextdoor",
+  "primary_conversion": "client_confirmed_consultation_with_confirmed_Cal.com_booking",
+  "customer_workflow": [
+    "relevant_request",
+    "personalized_conversation",
+    "confirm_service_and_job_location",
+    "offer_verified_available_times",
+    "client_agrees",
+    "Cal.com_booking_confirmed"
+  ],
+  "business_outcomes": [
+    "collected_revenue",
+    "profit_where_cost_data_exists",
+    "satisfied_customers",
+    "repeat_business",
+    "sustainable_demand_and_cash_flow_for_hiring"
+  ],
+  "requested_operating_mode": "coordinated_unattended_AI_team_with_owner_reports_and_correspondence_copies",
+  "this_package_changes_live_permissions": false,
+  "original_document_import_status": "pending_OneDrive_authorization_and_role_review",
+  "verified_runtime_integration": false
+}
