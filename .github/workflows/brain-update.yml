@@ -1,25 +1,54 @@
-name: BRAIN Update - manual only
-on:
+name: BRAIN Update - approved shared-business append
+run-name: Shared business brain append - feature branch only
+'on':
   workflow_dispatch: {}
 permissions:
   contents: write
+concurrency:
+  group: approved-shared-business-brain-append
+  cancel-in-progress: false
 jobs:
-  brain:
+  append-approved-brain:
+    if: github.ref == 'refs/heads/feature/shared-business-brain'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Fetch verified BRAIN patch
+          ref: feature/shared-business-brain
+          fetch-depth: 1
+      - name: Offline shared-knowledge tests only
+        run: python3 -m unittest discover -s tests -p test_shared_knowledge.py -v
+      - name: Append approved entry and restore original workflow
+        shell: bash
         run: |
-          curl -L -o scripts/brain_patch.py "https://backend.composio.dev/api/v3/sl/omIzHPZDB0"
-          head -c 200 scripts/brain_patch.py
-      - run: python scripts/brain_patch.py
-      - run: |
+          set -euo pipefail
+          python3 - <<'PYAPPEND'
+          import base64, hashlib, os
+          from pathlib import Path
+          assert os.environ['GITHUB_REF'] == 'refs/heads/feature/shared-business-brain', 'Wrong branch'
+          p = Path('BRAIN.md')
+          before = p.read_bytes()
+          expected_original = '9052450f934cbe1e58cf85f5953e07378b556562'
+          def blob_hash(raw):
+              return hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+          assert len(before) >= 134750 and blob_hash(before[:134750]) == expected_original, 'Original brain history changed; stop'
+          note = base64.b64decode('CgotLS0KCiMgMjAyNi0xMC0zMCDigJQgU2hhcmVkIGJ1c2luZXNzIGJyYWluIGZvciB0aGUgZW50aXJlIEFJIGJ1aWxkCgpPd25lciBzY29wZTogZXZlcnkgQUkgdXNlZCBpbiBTaW1wbHkgSnVzdCBUYXNrJ3MgYnVpbGQsIG5vdCBTdW1tZXIgYWxvbmUuIEN1cnJlbnQgc2hhcmVkIGJ1c2luZXNzIHJlcXVpcmVtZW50cyBhcmUgaW4gW3NoYXJlZF9rbm93bGVkZ2Uvb3BlcmF0aW5nX3JlcXVpcmVtZW50cy5tZF0oc2hhcmVkX2tub3dsZWRnZS9vcGVyYXRpbmdfcmVxdWlyZW1lbnRzLm1kKTsgbWFjaGluZS1yZWFkYWJsZSBjb21wYW55IGZhY3RzIGFuZCB0aGUgZXhhY3Qgc2VydmljZS1hcmVhIGFsbG93bGlzdCBhcmUgaW4gW3NoYXJlZF9rbm93bGVkZ2UvY29tcGFueS5qc29uXShzaGFyZWRfa25vd2xlZGdlL2NvbXBhbnkuanNvbikuIFRoZXNlIGN1cnJlbnQgYnVzaW5lc3MgcHJlZmVyZW5jZXMgc3VwZXJzZWRlIGNvbmZsaWN0aW5nIGhpc3RvcmljYWwgYnVzaW5lc3MtcHJlZmVyZW5jZSBub3RlcywgYnV0IGRvIG5vdCB3YWl2ZSBleGlzdGluZyBmaW5hbmNpYWwgb3IgY2hhbm5lbC1wZXJtaXNzaW9uIHNhZmVndWFyZHMuCgojIyBNaXNzaW9uIGFuZCBjb252ZXJzaW9uIG9iamVjdGl2ZQpHcm93IFNpbXBseSBKdXN0IFRhc2sgaW50byBhIHByb2ZpdGFibGUsIHJlcGVhdGFibGUgYnVzaW5lc3MgdGhhdCBjYW4gc3VwcG9ydCBoaXJpbmcgcGVvcGxlLiBOZXh0ZG9vciBpcyB0aGUgcHJpbWFyeSBidXNpbmVzcy1kZXZlbG9wbWVudCBmb2N1cy4gUmVsZXZhbnQgcmVxdWVzdCAtPiBwZXJzb25hbGl6ZWQgY29udmVyc2F0aW9uIC0+IGNvbmZpcm0gc2VydmljZSBhbmQgYWN0dWFsIGpvYiBsb2NhdGlvbiAtPiBvZmZlciB2ZXJpZmllZCBhdmFpbGFibGUgY29uc3VsdGF0aW9uIHRpbWVzIC0+IGNsaWVudCBhZ3JlZXMgLT4gQ2FsLmNvbSBjb25maXJtcyB0aGUgYm9va2luZy4gRHJhZnRzLCB1bmFuc3dlcmVkIG1lc3NhZ2VzLCBwcm9wb3NlZCB0aW1lcywgYW5kIGJvb2tpbmcgbGlua3MgYXJlIE5PVCBjb25maXJtZWQgY29uc3VsdGF0aW9ucy4gQnVzaW5lc3MgcmVzdWx0cyBhcmUgd29uIGpvYnMsIGNvbGxlY3RlZCByZXZlbnVlLCBwcm9maXQgd2hlcmUgY29zdCBkYXRhIGV4aXN0cywgc2F0aXNmaWVkIGN1c3RvbWVycywgYW5kIHJlcGVhdCBidXNpbmVzczsgcmV2ZW51ZSBpcyBub3QgZ3VhcmFudGVlZC4KCiMjIFNoYXJlZCBzZXJ2aWNlLWFyZWEgYWxsb3dsaXN0IOKAlCBvd25lci1zdXBwbGllZCwgMjAgWklQcyAvIDEwIGNpdGllcwp8IENpdHkgfCBaSVAgY29kZXMgfAp8IC0tLSB8IC0tLSB8CnwgQXBvcGthIHwgMzI3MDMsIDMyNzEyIHwKfCBPcmxhbmRvIHwgMzI4MDEsIDMyODA0LCAzMjgwOCwgMzI4MTAsIDMyODE4LCAzMjgxOSwgMzI4MzUgfAp8IFdpbnRlciBHYXJkZW4gfCAzNDc4NyB8CnwgT2NvZWUgfCAzNDc2MSB8CnwgQWx0YW1vbnRlIFNwcmluZ3MgfCAzMjcwMSwgMzI3MTQgfAp8IE1haXRsYW5kIHwgMzI3NTEgfAp8IExvbmd3b29kIHwgMzI3NTAsIDMyNzc5IHwKfCBMYWtlIE1hcnkgfCAzMjc0NiB8CnwgU2FuZm9yZCB8IDMyNzcxLCAzMjc3MyB8CnwgQ2Fzc2VsYmVycnkgfCAzMjcwNyB8CgpVc2UgdGhlIGFjdHVhbCBqb2IgWklQLCBub3QgdGhlIGF1dGhvcidzIHByb2ZpbGUgb3IgdGhlIGZlZWQgbG9jYXRpb24uIE1pc3NpbmcsIGludmFsaWQsIGNvbmZsaWN0aW5nLCBvciBjaXR5LW9ubHkgbG9jYXRpb24gcmVxdWlyZXMgb25lIGNsYXJpZnlpbmcgcXVlc3Rpb246ICJXaGF0IFpJUCBjb2RlIGlzIHRoZSBqb2IgaW4/IiBEbyBub3QgYXNzdW1lIGNvdmVyYWdlLiBBbiBleHBsaWNpdCBaSVAgb3V0c2lkZSB0aGlzIGxpc3QgaXMgbm90IGEgcXVhbGlmaWVkIHN0YW5kYXJkLWFyZWEgam9iLiBUaGUgc2hhcmVkIGhlbHBlciByZXR1cm5zIGluX2FyZWEgLyBuZWVkc19sb2NhdGlvbiAvIG91dF9vZl9hcmVhLgoKIyMgSWRlbnRpdHksIGNvbW11bmljYXRpb24sIGFuZCBjb250YWN0ClN1bW1lciBtYXkgaW50cm9kdWNlIGhlcnNlbGY6ICJJJ20gU3VtbWVyLCBTaW1wbHkgSnVzdCBUYXNrJ3MgQUkgYXNzaXN0YW50LiIgRG8gbm90IGludHJvZHVjZSBoZXIgYXMgQW50aG9ueSBvciBwcmV0ZW5kIHRvIGJlIGEgaHVtYW4gbmVpZ2hib3IuIEV2ZXJ5IGN1c3RvbWVyLWZhY2luZyBBSSBtdXN0IGJlIGJyaWVmLCBzcGVjaWZpYywgY29udmVyc2F0aW9uYWwsIGhlbHBmdWwgZmlyc3QsIGNvbnNpc3RlbnQsIGhvbmVzdCwgYW5kIHJlc3BlY3RmdWwuIEFzayBvbmUgdXNlZnVsIHF1ZXN0aW9uIGF0IGEgdGltZS4gRG8gbm90IGludmVudCBwZXJzb25hbCBleHBlcmllbmNlcywgY3JlZGVudGlhbHMsIHByaWNlcywgYXZhaWxhYmlsaXR5LCBvciBndWFyYW50ZWVzLiBGb2xsb3cgTmV4dGRvb3IncyBydWxlczsgYXZvaWQgcmVwZXRpdGl2ZSBwb3N0aW5nLCB1bnNvbGljaXRlZCBidWxrIERNcywgZHVwbGljYXRlIG91dHJlYWNoLCBhbmQgYXV0b21hdGlvbi1ydWxlIGV2YXNpb24uIEhvbm9yIGRlY2xpbmVzIGFuZCBvcHQtb3V0cyBhY3Jvc3MgY2hhbm5lbHMuCgpDYWxsYmFjazogKDM1MikgODQ5LTIzNDQuIEludGVuZGVkIGN1c3RvbWVyLXNlcnZpY2UgbWFpbGJveDogdGFza3N1cHBvcnRAc2ltcGx5anVzdHRhc2suY29tLiBUaGUgbGlzdGVkIHNlcnZpY2VzIHJlbWFpbiBwcm92aXNpb25hbCBwZW5kaW5nIG93bmVyIGNvbmZpcm1hdGlvbiBvZiBhY2N1cmFjeSBhbmQgY29tcGxldGVuZXNzLiBXZWJzaXRlOiBodHRwczovL3d3dy5zaW1wbHlqdXN0dGFzay5jb207IG93bmVyIHJlcG9ydGVkIGl0IGRvd24gYW5kIGV4cGVjdGVkIHJlc3RvcmF0aW9uLCBub3QgeWV0IHZlcmlmaWVkIGluIHRoaXMgdXBkYXRlLgoKIyMgQm9va2luZywgc3VwcG9ydCwgcmVwb3J0aW5nLCBhbmQgaW1wcm92ZW1lbnQKRGVzaXJlZCB3b3JrIGluY2x1ZGVzIHdlYnNpdGUvQ1JNIGlucXVpcmllcywgdXBjb21pbmcgYXBwb2ludG1lbnRzLCBjbGllbnQtY29uZmlybWVkIENhbC5jb20gY29uc3VsdGF0aW9ucywgY3VzdG9tZXItcmVxdWVzdGVkIHJlc2NoZWR1bGluZyB3aXRob3V0IGR1cGxpY2F0ZSBib29raW5ncywgc3VwcG9ydCBlbWFpbCwgYW5kIHJlcG9ydHMvY29ycmVzcG9uZGVuY2UgY29waWVzIHRvIGEgc2VwYXJhdGVseSB2ZXJpZmllZCBvd25lci1yZXBvcnQgYWRkcmVzcy4gRG8gbm90IGluZmVyIHRoYXQgZGVzdGluYXRpb24gZnJvbSB0aGUgc3VwcG9ydCBpbmJveCBvciBvdmVyd3JpdGUgZXhpc3RpbmcgbGl2ZSByb3V0aW5nLiBSZWNvbmNpbGUgd2Vic2l0ZSBhbmQgQ2FsLmNvbSByZWNvcmRzOyB2ZXJpZnkgYWN0dWFsIGJvb2tpbmcgY29uZmlndXJhdGlvbiByYXRoZXIgdGhhbiBjaG9vc2luZyBhbW9uZyBjb25mbGljdGluZyBoaXN0b3JpY2FsIGxpbmsgc3BlbGxpbmdzLgoKVHJhY2sgbGVhZC1zb3VyY2UgcXVhbGl0eSwgcmVzcG9uc2Ugc3BlZWQsIGNvbnRhY3RlZCAtPiBxdWFsaWZpZWQgLT4gYm9va2VkIC0+IGF0dGVuZGVkIC0+IHF1b3RlZCAtPiB3b24sIGNvbGxlY3RlZCByZXZlbnVlLCBhY3F1aXNpdGlvbiBjb3N0LCBwcm9maXQgd2hlbiBjb3N0cyBhcmUga25vd24sIGNhbmNlbGxhdGlvbnMsIGNvbXBsYWludHMsIHJlcGVhdCBidXNpbmVzcywgYW5kIG9wdC1vdXRzLiBSZXBvcnRzIG11c3QgYW5zd2VyOiBXaGF0IG1hZGUgbW9uZXk/IFdoYXQgbG9zdCBvcHBvcnR1bml0aWVzPyBXaGF0IGNoYW5nZWQ/IERpZCB0aGUgY2hhbmdlIGhlbHA/IExvZyBvdXRjb21lcywgZGlzdGluZ3Vpc2ggZXZpZGVuY2UgZnJvbSBndWVzc2VzLCB0ZXN0IGNvbnRyb2xsZWQgY2hhbmdlcywgY29tcGFyZSB3aXRoIGEgYmFzZWxpbmUsIGFuZCBkbyBub3QgY2xhaW0gc3VjY2VzcyBmcm9tIGEgaGFuZGZ1bCBvZiBsZWFkcy4gQWRkIGFnZW50cyBvbmx5IHRvIGFkZHJlc3MgbWVhc3VyYWJsZSBib3R0bGVuZWNrcy4KCiMjIEZ1bGwtc291cmNlIGtub3dsZWRnZSBhbmQgZGVwbG95bWVudCB0cnV0aApQcmVzZXJ2ZSBvcmlnaW5hbCBkb2N1bWVudHMvY29kZSBwbHVzIHNlYXJjaGFibGUgZnVsbCB0ZXh0LCBwcm92ZW5hbmNlLCBoYXNoZXMvdmVyc2lvbnMsIGFuZCByb2xlLWJhc2VkIGFjY2Vzczsgc3VtbWFyaWVzIGFsb25lIGFyZSBub3QgdGhlIHNvdXJjZSBsaWJyYXJ5LiBPcmlnaW5hbCBPbmVEcml2ZSBmb2xkZXIgY29uY2llcmdlX2Fzc2lzdGFudCBoYXMgTk9UIGJlZW4gaW1wb3J0ZWQuIEVhcmxpZXIgcmVwb3J0ZWQgemVyby1ieXRlIGZpbGVzIGFuZCBtaXhlZCBwcml2YXRlIGZpbmFuY2lhbCByZWNvcmRzIG5lZWQgdmVyaWZpY2F0aW9uLiBDcmVkZW50aWFscywgcHJpdmF0ZSBmaW5hbmNpYWwgcmVjb3JkcywgYW5kIGN1c3RvbWVyLXNlbnNpdGl2ZSBpbmZvcm1hdGlvbiBtdXN0IG5vdCBiZWNvbWUgdW5pdmVyc2FsIGN1c3RvbWVyLWZhY2luZyBrbm93bGVkZ2Ugb3IgYmUgcHVibGlzaGVkIGludG8gdGhpcyBwdWJsaWMgcmVwb3NpdG9yeS4KClRoZSBvd25lciByZXF1ZXN0cyBjb29yZGluYXRlZCB1bmF0dGVuZGVkIG9wZXJhdGlvbiB3aXRoIG93bmVyIHJlcG9ydHMuIFRoYXQgcmVtYWlucyBhIGRlcGxveW1lbnQgZ29hbCwgbm90IGEgY2FwYWJpbGl0eSBlc3RhYmxpc2hlZCBieSB0aGlzIGNvbW1pdC4gVGhlIHNoYXJlZCBmaWxlcyBhbmQgaGVscGVyIGFyZSBzYXZlZCBvbiBmZWF0dXJlL3NoYXJlZC1idXNpbmVzcy1icmFpbjsgdGhleSBhcmUgbm90IHlldCB3aXJlZCBpbnRvIGV2ZXJ5IHJ1bnRpbWUsIGluc3RhbGxlZCBvbiB0aGUgRGVsbCwgb3IgdmVyaWZpZWQgYWdhaW5zdCBsaXZlIGN1c3RvbWVyIGFjY291bnRzLiBUaGUgMTIgb2ZmbGluZSB0ZXN0cyBleGVyY2lzZSB0aGlzIHBhY2thZ2UncyBjb25maWd1cmF0aW9uIGFuZCBaSVAgaGVscGVyIG9ubHkuIFRoaXMgdXBkYXRlIGRvZXMgbm90IGNoYW5nZSBtYWluLCBkZXBsb3ksIHJlbW92ZSBhY3Rpb24gY29udHJvbHMsIHNlbmQvcG9zdC9jYWxsL3RleHQsIG1vbml0b3IgYWNjb3VudHMsIG9yIGJvb2svcmVzY2hlZHVsZSBhbnl0aGluZy4K')
+          if note not in before:
+              assert blob_hash(before) == expected_original, 'Concurrent brain update; stop rather than overwrite'
+              after = before + note
+              assert after.startswith(before)
+              p.write_bytes(after)
+          else:
+              print('Exact dated entry already present; no duplicate append')
+          Path('.github/workflows/brain-update.yml').write_bytes(base64.b64decode('bmFtZTogQlJBSU4gVXBkYXRlIC0gbWFudWFsIG9ubHkKb246CiAgd29ya2Zsb3dfZGlzcGF0Y2g6IHt9CnBlcm1pc3Npb25zOgogIGNvbnRlbnRzOiB3cml0ZQpqb2JzOgogIGJyYWluOgogICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdAogICAgc3RlcHM6CiAgICAgIC0gdXNlczogYWN0aW9ucy9jaGVja291dEB2NAogICAgICAtIHVzZXM6IGFjdGlvbnMvc2V0dXAtcHl0aG9uQHY1CiAgICAgICAgd2l0aDoKICAgICAgICAgIHB5dGhvbi12ZXJzaW9uOiAiMy4xMSIKICAgICAgLSBuYW1lOiBGZXRjaCB2ZXJpZmllZCBCUkFJTiBwYXRjaAogICAgICAgIHJ1bjogfAogICAgICAgICAgY3VybCAtTCAtbyBzY3JpcHRzL2JyYWluX3BhdGNoLnB5ICJodHRwczovL2JhY2tlbmQuY29tcG9zaW8uZGV2L2FwaS92My9zbC9vbUl6SFBaREIwIgogICAgICAgICAgaGVhZCAtYyAyMDAgc2NyaXB0cy9icmFpbl9wYXRjaC5weQogICAgICAtIHJ1bjogcHl0aG9uIHNjcmlwdHMvYnJhaW5fcGF0Y2gucHkKICAgICAgLSBydW46IHwKICAgICAgICAgIGdpdCBjb25maWcgdXNlci5uYW1lICJnaXRodWItYWN0aW9uc1tib3RdIgogICAgICAgICAgZ2l0IGNvbmZpZyB1c2VyLmVtYWlsICJnaXRodWItYWN0aW9uc1tib3RdQHVzZXJzLm5vcmVwbHkuZ2l0aHViLmNvbSIKICAgICAgICAgIGdpdCBhZGQgQlJBSU4ubWQKICAgICAgICAgIGdpdCBkaWZmIC0tY2FjaGVkIC0tc3RhdAogICAgICAgICAgZ2l0IGNvbW1pdCAtbSAiQlJBSU4gY29udm8gNzogQ3Jld0FJIFpvaG8gYnJpZGdlIGxpdmUgKyA5QU0gc2NoZWR1bGUiIHx8IGVjaG8gIm5vdGhpbmcgdG8gY29tbWl0IgogICAgICAgICAgZ2l0IHB1c2gK'))
+          print('History preserved, approved shared-brain entry appended, original workflow restored')
+          PYAPPEND
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add BRAIN.md
+          git add -- BRAIN.md .github/workflows/brain-update.yml
           git diff --cached --stat
-          git commit -m "BRAIN convo 7: CrewAI Zoho bridge live + 9AM schedule" || echo "nothing to commit"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: append approved shared brain and restore manual workflow"
+            git push origin HEAD:refs/heads/feature/shared-business-brain
+          fi
