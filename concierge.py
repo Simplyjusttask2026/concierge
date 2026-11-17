@@ -1041,6 +1041,13 @@ def chat():
     threading.Thread(target=_autosave, daemon=True).start()
 
     convo = ""
+    try:
+        _site_ctx = summer_bridge.site_context_block()
+    except Exception as _ex:
+        _site_ctx = ""
+        print("site context skipped:", _ex)
+    if _site_ctx:
+        convo = _site_ctx + chr(10) + chr(10)
     if history:
         convo = "Conversation so far:\n" + "\n".join(
             ("Guest: " if m.get("role") == "user" else "You: ") + str(m.get("content", ""))
@@ -1727,6 +1734,10 @@ def zoho_token_helper():
 @app.route("/ping")
 def ping():
     return jsonify({"alive": True})
+
+# ====== Shared knowledge with the website concierge, both ways ======
+import summer_bridge  # noqa: E402
+summer_bridge.register_summer_bridge(app)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
